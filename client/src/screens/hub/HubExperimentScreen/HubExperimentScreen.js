@@ -3,7 +3,7 @@ import './ExperimentDiff.css';
 
 import React from 'react';
 import { Helmet } from 'react-helmet';
-import { Redirect } from 'react-router-dom';
+import { Redirect, Link } from 'react-router-dom';
 import ReactSVG from 'react-svg';
 import {parseDiff, Diff, Hunk, Decoration} from 'react-diff-view';
 import moment from 'moment';
@@ -49,7 +49,6 @@ class HubExperimentScreen extends React.Component {
 
   componentDidMount() {
     this.getExperiment();
-
     this.handleResize();
     window.addEventListener('resize', this.handleResize);
   }
@@ -426,6 +425,16 @@ class HubExperimentScreen extends React.Component {
 
   _renderExperimentHeader = () => {
     let experimentName = this.props.match.params.experiment_name;
+    let backLink;
+    if (this.state.commit.process) {
+      backLink = (
+        <Link to={buildUrl(screens.HUB_PROJECT_EXECUTABLE_PROCESS_DETAIL, {
+          process_id: this.state.commit.process.uuid,
+        })}>
+          Visit Process
+        </Link>
+      )
+    }
 
     return (
       <>
@@ -446,7 +455,7 @@ class HubExperimentScreen extends React.Component {
             />
             <div>
               {!!this.state.commit &&
-              <>
+              <div className='HubExperimentScreen__header__wrapper'>
                 {!this.state.commit.index
                   ? (!Number.isInteger(this.state.commit.message) || `${this.state.commit.message}`.length !== 10) &&
                     <UI.Text type='grey-darker'>
@@ -463,7 +472,8 @@ class HubExperimentScreen extends React.Component {
                     Committed on {moment.unix(this.state.commit.date).format('D MMM, YY')}
                   </UI.Text>
                 }
-              </>
+                {backLink}
+              </div>
               }
             </div>
           </div>

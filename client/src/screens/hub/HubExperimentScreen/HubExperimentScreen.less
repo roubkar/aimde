@@ -1,5 +1,19 @@
 @import '../../../vars';
 
+.HubExperimentScreen__row {
+  margin: var(--component-spacing-sm) 0;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.HubExperimentScreen__header__wrapper {
+  display: flex;
+  > * {
+    margin-left: var(--component-spacing-md);
+  }
+}
+
 .HubExperimentScreen__header {
   display: grid;
   grid-template-columns: 1fr 4fr;
