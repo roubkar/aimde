@@ -165,9 +165,11 @@ class Panel extends Component {
     }
 
     this.drawArea().then(() => this.drawAxes()).then(() => {
-      this.drawLines();
-      this.drawHoverAttributes();
-      this.bindInteractions();
+      window.requestAnimationFrame(() => {
+        this.drawLines();
+        this.drawHoverAttributes();
+        this.bindInteractions();
+      });
     });
   };
 
