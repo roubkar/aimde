@@ -25,11 +25,11 @@ class ProjectWrapper extends React.Component {
   }
 
   componentWillMount() {
-    this.props.resetProjectState();
+    this.props.updateProjectData();
   }
 
   componentDidMount() {
-    this.props.getProject().then((data) => {
+    this.props.getProjectData().then((data) => {
       this.props.incProgress();
     }).catch(() => {
       this.setState( {
@@ -74,9 +74,57 @@ class ProjectWrapper extends React.Component {
     );
   };
 
-  render() {
+  _renderContent = () => {
     let project = this.props.project;
 
+    if (this.props.isUpdating) {
+      return null;
+    }
+
+    return (
+      <div
+        className={classNames({
+          ProjectWrapper: true,
+          gap: this.props.gap,
+        })}
+      >
+        <div
+          className='ProjectWrapper__header'
+          ref={this.projectWrapperHeaderRef}
+        >
+          <UI.Container size={this.props.size}>
+            <div className='ProjectWrapper__header__cont'>
+              <div className='ProjectWrapper__breadcrumb'>
+                <Link
+                  to={screens.MAIN}
+                >
+                  <UI.Icon i='nc-link-72' scale={1} spacingRight />
+                  <UI.Text>{project.path}</UI.Text>
+                </Link>
+              </div>
+            </div>
+            <div className='ProjectWrapper__navbar__wrapper'>
+              {this._renderNav()}
+            </div>
+          </UI.Container>
+        </div>
+        <div className='ProjectWrapper__body'>
+          {!!this.props.navigation &&
+          <div className='ProjectWrapper__navigation'>
+            {React.cloneElement(this.props.navigation, {
+              contentWidth: this.props.contentWidth,
+            })}
+          </div>
+          }
+          <div className='ProjectWrapper__cont' ref={this.contentRef}>
+            {this.props.children}
+          </div>
+        </div>
+      </div>
+    )
+  };
+
+  render() {
     if (this.props.isLoading) {
       return null;
     }
@@ -89,45 +137,7 @@ class ProjectWrapper extends React.Component {
 
     return (
       <HubWrapper gap={false}>
-        <div
-          className={classNames({
-            ProjectWrapper: true,
-            gap: this.props.gap,
-          })}
-        >
-          <div
-            className='ProjectWrapper__header'
-            ref={this.projectWrapperHeaderRef}
-          >
-            <UI.Container size={this.props.size}>
-              <div className='ProjectWrapper__header__cont'>
-                <div className='ProjectWrapper__breadcrumb'>
-                  <Link
-                    to={screens.MAIN}
-                  >
-                    <UI.Icon i='nc-link-72' scale={1} spacingRight />
-                    <UI.Text>{project.path}</UI.Text>
-                  </Link>
-                </div>
-              </div>
-              <div className='ProjectWrapper__navbar__wrapper'>
-                {this._renderNav()}
-              </div>
-            </UI.Container>
-          </div>
-          <div className='ProjectWrapper__body'>
-            {!!this.props.navigation &&
-              <div className='ProjectWrapper__navigation'>
-                {React.cloneElement(this.props.navigation, {
-                  contentWidth: this.props.contentWidth,
-                })}
-              </div>
-            }
-            <div className='ProjectWrapper__cont' ref={this.contentRef}>
-              {this.props.children}
-            </div>
-          </div>
-        </div>
+        {this._renderContent()}
       </HubWrapper>
     )
   }

@@ -597,7 +597,7 @@ class HubExperimentScreen extends React.Component {
       )
     }
 
-    if (!this.state.experiment.branch_init) {
+    if (!this.state.experiment || !this.state.experiment.branch_init) {
       return this._renderEmptyBranch();
     }
 
@@ -607,7 +607,6 @@ class HubExperimentScreen extends React.Component {
     ) {
       return this._renderEmptyIndex();
     }
-    
 
     return (
       <>
@@ -694,7 +693,7 @@ class HubExperimentScreen extends React.Component {
       return (
         <Redirect to={buildUrl(screens.HUB_PROJECT_EXPERIMENT, {
           experiment_name: this.state.selectBranch,
-          commit_id: 'index',
+          commit_id: 'latest',
         })} />
       )
     }

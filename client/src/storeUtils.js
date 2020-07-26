@@ -22,6 +22,10 @@ export function getWithState(caseName, caseClass) {
     case classes.APP:
       mapState2Props = (state) => ({
         loadProgress: state.default.loadProgress,
+        ...state.project,
+      });
+      Object.assign(mapDispatch2Props, {
+        getProject: projectActions.getProject,
       });
       break;
     // Wrappers
@@ -36,12 +40,15 @@ export function getWithState(caseName, caseClass) {
         ...state.project,
       });
       Object.assign(mapDispatch2Props, {
-        getProject: projectActions.getProject,
-        resetProjectState: projectActions.resetProjectState,
+        getProjectData: projectActions.getProjectData,
+        updateProjectData: projectActions.updateProjectData,
       });
       break;
     // Components
     case classes.HEADER:
+      mapState2Props = (state) => ({
+        ...state.project,
+      });
       break;
     case classes.SEARCH_BAR:
       break;
@@ -69,7 +76,9 @@ export function getWithState(caseName, caseClass) {
       });
       break;
     case classes.HUB_PROJECT_SCREEN:
-      mapState2Props = (state) => ({ ...state.project });
+      mapState2Props = (state) => ({
+        ...state.project
+      });
       break;
     case classes.HUB_PROJECT_EXECUTABLES:
       Object.assign(mapDispatch2Props, {
@@ -93,6 +102,17 @@ export function getWithState(caseName, caseClass) {
         getExecutable: executablesActions.getExecutable,
         saveExecutable: executablesActions.saveExecutable,
         hideExecutable: executablesActions.hideExecutable,
+      });
+      break;
+    case classes.HUB_TF_SUMMARY_LIST_SCREEN:
+      mapState2Props = (state) => ({
+        loadProgress: state.default.loadProgress,
+        ...state.project,
+      });
+      Object.assign(mapDispatch2Props, {
+        getTFSummaryList: commitActions.getTFSummaryList,
+        getTFLogParams: commitActions.getTFLogParams,
+        postTFLogParams: commitActions.postTFLogParams,
       });
       break;
     case classes.HUB_PROJECT_EXECUTABLE_PROCESS_DETAIL:
@@ -119,8 +139,7 @@ export function getWithState(caseName, caseClass) {
       break;
     case classes.HUB_PROJECT_EXPERIMENT_SCREEN:
       mapState2Props = (state) => ({
-        project: state.project.project,
-        user_name: state.project.project.user_name,
+        ...state.project,
       });
       Object.assign(mapDispatch2Props, {
         getExperiment: projectActions.getExperiment,

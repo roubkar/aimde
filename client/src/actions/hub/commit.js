@@ -61,3 +61,39 @@ export function getCommitInfo(experiment, commit_id) {
     });
   }
 }
+
+export function getTFSummaryList() {
+  return dispatch => {
+    return new Promise((resolve, reject) => {
+      callApi('Commit.getTFSummaryList').then((data) => {
+        resolve(data);
+      }).catch((err) => {
+        reject(err);
+      });
+    });
+  }
+}
+
+export function getTFLogParams(path) {
+  return dispatch => {
+    return new Promise((resolve, reject) => {
+      callApi('Commit.getTFLogParams', { path }).then((data) => {
+        resolve(data);
+      }).catch((err) => {
+        reject(err);
+      });
+    });
+  }
+}
+
+export function postTFLogParams(path, params, parsed_params) {
+  return dispatch => {
+    return new Promise((resolve, reject) => {
+      callApi('Commit.postTFLogParams', { path, params, parsed_params }).then((data) => {
+        resolve(data);
+      }).catch((err) => {
+        reject(err);
+      });
+    });
+  }
+}

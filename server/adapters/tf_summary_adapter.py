@@ -5,6 +5,8 @@ from utils import get_module, ls_dir
 
 
 class TFSummaryAdapter:
+    TF_LOGS_PATH = '/tf_logs'
+
     event_accumulator = None
 
     @staticmethod
@@ -12,8 +14,15 @@ class TFSummaryAdapter:
         return b64encode(log_file_name.encode('utf-8')).decode('utf-8')
 
     @classmethod
-    def list_log_dir_paths(cls, root_path):
+    def exists(cls, root_path=TF_LOGS_PATH):
+        return os.path.isdir(root_path)
+
+    @classmethod
+    def list_log_dir_paths(cls, root_path=TF_LOGS_PATH):
         """Returns list of directory names which contain `tfevents` file"""
+        if not cls.exists(root_path):
+            return []
+
         all_files = ls_dir([root_path])
         tfevent_files = filter(lambda f: 'tfevents' in f, all_files)
         tfevent_file_paths = set()
@@ -37,6 +46,9 @@ class TFSummaryAdapter:
             self.event_accumulator = get_module(
                 'tensorboard.backend.event_processing.event_accumulator')
 
+        if not os.path.isdir(dir_path):
+            return
+
         for file in os.listdir(dir_path):
             file_path = os.path.join(self.dir_path, file)
             if os.path.isfile(file_path) and 'tfevents' in file:
@@ -49,7 +61,6 @@ class TFSummaryAdapter:
                     size_guidance={
                         self.event_accumulator.SCALARS: 0,
                     })
-                print(file_path)
                 ea_inst.Reload()
                 ea_tags = ea_inst.Tags().get('scalars') or []
                 self.ea_list.append({
@@ -95,6 +106,7 @@ class TFSummaryAdapter:
         for scalar in scalars.values():
             _, _, name = self.dir_path[1:].partition('/')
             scalar['name'] = name
+            scalar['path'] = self.dir_path
             scalar['hash'] = self.name_to_hash(name)
 
             # Order data by step and remove duplications

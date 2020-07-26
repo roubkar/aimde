@@ -28,14 +28,27 @@
   }
 }
 
+.ContextBox__table__topheader {
+  color: var(--grey);
+
+  td {
+    background-color: var(--grey-bg);
+    padding: 2px var(--space-xxs);
+    border-bottom: 1px solid var(--grey-lighter);
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+  }
+}
+
 .ContextBox__table__header {
   background-color: var(--grey-bg);
   color: var(--grey-dark);
   text-align: center;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
 
   td {
-    padding: var(--space-xxxs);
+    padding: 1px;
     border-right: 1px solid var(--grey-lighter);
     border-bottom: 1px solid var(--grey-lighter);
   }
@@ -84,4 +97,8 @@
   height: 0.5em;
   border-radius: 50%;
   margin-right: var(--component-spacing-sm);
+}
+
+.ContextBox__param__item {
+  margin-right: 10px;
 }

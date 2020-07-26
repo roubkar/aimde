@@ -1052,7 +1052,7 @@ class Panel extends Component {
         <div ref={this.visRef} className='ControlPanel__svg' />
         {this.context.metrics.isLoading
           ? (
-            this.context.search.query.indexOf('tf_scalar') === -1
+            this.context.search.query.indexOf('include:tf_logs') === -1
               ? this._renderPanelMsg(<UI.Text type='grey' center>Loading..</UI.Text>)
               : this._renderPanelMsg(<UI.Text type='grey' center>Loading tf.summary logs can take some time..</UI.Text>)
           )

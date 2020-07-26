@@ -312,7 +312,7 @@ class HubExecutableDetailScreen extends React.Component {
   render() {
     return (
       <ProjectWrapper>
-        <UI.Container size='small' ref={this.contentRef}>
+        <UI.Container size='small'>
           {this._renderContent()}
         </UI.Container>
       </ProjectWrapper>

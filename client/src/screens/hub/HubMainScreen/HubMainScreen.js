@@ -150,7 +150,7 @@ class HubMainScreen extends React.Component {
       }
     } else {
       let setSearchQuery = getItem(USER_LAST_SEARCH_QUERY);
-      if (setSearchQuery === undefined) {
+      if (!setSearchQuery) {
         setSearchQuery = this.defaultSearchQuery;
       }
       if (!!setSearchQuery) {

@@ -1,29 +1,52 @@
 import * as actionTypes from '../actions/actionTypes';
 
 const initialState = {
-  project: {},
+  project: {
+    tf_enabled: false,
+  },
   isLoading: true,
+  isUpdating: false,
 };
 
 export default function reduce(state = initialState, action = {}) {
   switch (action.type) {
     case actionTypes.HUB_PROJECT:
-      return Object.assign({}, state, {
-        project: action.data,
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          ...action.data,
+        },
         isLoading: false,
-      });
+      };
+
+    case actionTypes.HUB_PROJECT_UPDATE_START:
+      return {
+        ...state,
+        isUpdating: true,
+      };
+
+    case actionTypes.HUB_PROJECT_UPDATE:
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          ...action.data,
+        },
+      };
+
+    case actionTypes.HUB_PROJECT_UPDATE_STATUS_DONE:
+      return {
+        ...state,
+        isUpdating: false,
+      };
 
     case actionTypes.HUB_PROJECT_NOT_FOUND:
-      return Object.assign({}, state, {
+      return {
+        ...state,
         project: {},
         isLoading: false,
-      });
-
-    case actionTypes.HUB_PROJECT_STATE_RESET:
-      return Object.assign({}, state, {
-        project: {},
-        isLoading: true,
-      });
+      };
 
     default:
       return state;

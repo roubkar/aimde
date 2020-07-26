@@ -497,6 +497,65 @@ paths:
             application/json:
               schema:
                 type: object
+  "/commits/tf-summary/list":
+    get:
+      operationId: getTFSummaryList
+      summary: Get tf summary log paths
+      tags:
+        - Commit
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+  "/commits/tf-summary/params/list":
+    post:
+      operationId: getTFLogParams
+      summary: Get parameters of tf summary log
+      tags:
+        - Commit
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+  "/commits/tf-summary/params/update":
+    post:
+      operationId: postTFLogParams
+      summary: Post parameters of tf summary log
+      tags:
+        - Commit
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                path:
+                  type: string
+                params:
+                  type: string
+                parsed_params:
+                  type: object
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
   "/projects":
     get:
       operationId: getProject
@@ -510,6 +569,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProjectGet"
+  "/projects/info":
+    get:
+      operationId: getProjectData
+      summary: Get project
+      tags:
+        - Project
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
   "/projects/{experiment_name}/{commit_id}":
     get:
       operationId: getExperiment

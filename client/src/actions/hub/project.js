@@ -21,10 +21,32 @@ export function getProject() {
   }
 }
 
-export function resetProjectState() {
+export function getProjectData() {
+  return dispatch => {
+    return new Promise((resolve, reject) => {
+      dispatch({
+        type: actionTypes.HUB_PROJECT_UPDATE_START,
+      });
+      callApi('Project.getProjectData', ).then((data) => {
+        dispatch({
+          type: actionTypes.HUB_PROJECT_UPDATE,
+          data,
+        });
+        resolve(data);
+      }).catch((err) => {
+      }).finally(() => {
+        dispatch({
+          type: actionTypes.HUB_PROJECT_UPDATE_STATUS_DONE,
+        });
+      });
+    });
+  }
+}
+
+export function updateProjectData() {
   return dispatch => {
     dispatch({
-      type: actionTypes.HUB_PROJECT_STATE_RESET,
+      type: actionTypes.HUB_PROJECT_UPDATE_START,
     });
   }
 }

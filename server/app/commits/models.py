@@ -1,6 +1,7 @@
 import uuid
 import datetime
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db import db
 from app.utils import default_created_at
@@ -25,6 +26,22 @@ class Commit(db.Model):
         self.uuid = str(uuid.uuid1())
         self.hash = hash
         self.experiment_name = experiment_name
+        self.is_archived = False
+
+
+class TFSummaryLog(db.Model):
+    __tablename__ = 'tf_summary_logs'
+
+    uuid = db.Column(db.Text, primary_key=True)
+    log_path = db.Column(db.Text)
+    params = db.Column(db.Text)
+    params_json = db.Column(JSONB, default=None)
+    created_at = db.Column(db.DateTime, default=default_created_at)
+    is_archived = db.Column(db.Boolean)
+
+    def __init__(self, path):
+        self.uuid = str(uuid.uuid1())
+        self.log_path = path
         self.is_archived = False
 
 

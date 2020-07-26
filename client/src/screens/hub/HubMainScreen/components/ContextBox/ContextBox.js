@@ -11,11 +11,51 @@ import UI from '../../../../../ui';
 
 
 class ContextBox extends Component {
+  aimMetricExists = () => {
+    for (let m in this.context.metrics.data) {
+      if (this.context.isAimRun(this.context.metrics.data[m])) {
+        return true;
+      }
+    }
+  };
+
   formatValue = (v) => {
     return v ? Math.round(v * 10e6) / 10e6 : 0;
   };
 
-  _renderItem = (hash, runDictItem) => {
+  _renderTableHeaderParams = (params, paramGroups=null, paramGroupsGap=null) => {
+    if (!params || !params.length) {
+      return null;
+    }
+
+    return (
+      <>
+        {!!paramGroups && !!paramGroups.length &&
+          <tr className='ContextBox__table__header'>
+            {!!paramGroupsGap &&
+              <td colSpan={paramGroupsGap} />
+            }
+            {paramGroups.map((n, nKey) => (
+              <td key={nKey} colSpan={this.context.params.unionFields[n].length}>
+                {n}
+              </td>
+            ))}
+          </tr>
+        }
+        {!!params && !!params.length &&
+          <tr className='ContextBox__table__subheader'>
+            {params.map((f, fKey) => (
+              <td key={fKey}>
+                {f}
+              </td>
+            ))}
+          </tr>
+        }
+      </>
+    )
+  };
+
+  _renderItem = (hash, params) => {
     const index = this.context.chart.focused.index;
     const lineData = this.context.getMetricByHash(hash);
     if (lineData === null) {
@@ -48,6 +88,8 @@ class ContextBox extends Component {
       };
     }
 
+    const isAimRun = this.context.isAimRun(lineData);
+
     return (
       <tr className={className} style={style} key={hash}>
         <td>
@@ -58,11 +100,11 @@ class ContextBox extends Component {
             }}
           >
             <div className='ContextBox__table__item__tag__dot' style={{ backgroundColor: color }} />
-            {!!lineData.tag &&
-              `${lineData.tag.name}: `
+            {isAimRun && !!lineData.tag &&
+            `${lineData.tag.name}: `
             }
             {!!lineData.date &&
-              moment.unix(lineData.date).format('HH:mm · D MMM, YY')
+            moment.unix(lineData.date).format('HH:mm · D MMM, YY')
             }
           </div>
         </td>
@@ -75,71 +117,62 @@ class ContextBox extends Component {
         <td>
           {stepData !== null && stepData.epoch !== null ? stepData.epoch : '-'}
         </td>
-        {!!runDictItem && this.context.isAimRun(lineData) &&
-        Object.keys(this.context.params.unionFields).map((n, nKey) => (
-          this.context.params.unionFields[n].map((f, fKey) => (
-            <td key={nKey * this.context.params.unionFields[n].length + fKey}>
-              {runDictItem.data.hasOwnProperty(n) && runDictItem.data[n].hasOwnProperty(f)
-                ? runDictItem.data[n][f]
-                : '-'
-              }
-            </td>
-          ))
-        ))}
-        {this.context.isTFSummaryScalar(lineData) &&
-          <td colSpan={Object.values(this.context.params.unionFields).flat().length || 1}>
-            {lineData.name}
-          </td>
+        {isAimRun
+          ? this._renderAimRunContextItem(lineData, params)
+          : this._renderTFLogContextItem(lineData, params)
         }
       </tr>
     );
   };
 
-  doesAimMetricExist = () => {
-    for (let m in this.context.metrics.data) {
-      if (this.context.isAimRun(this.context.metrics.data[m])) {
-        return true;
-      }
-    }
-  };
-
-  _renderTableHeaderParams = () => {
-    if (!this.context.metrics.data.length) {
+  _renderAimRunContextItem = (lineData, params) => {
+    if (!this.context.isAimRun(lineData)) {
       return null;
     }
 
-    if (!this.doesAimMetricExist()) {
-      return <td />;
-    }
-
     return (
-      <>
-        {Object.keys(this.context.params.unionFields).map((n, nKey) => (
-          <td key={nKey} colSpan={this.context.params.unionFields[n].length}>
-            {n}
-          </td>
-        ))}
-      </>
+      <td>
+        {(!!params && !!params.data && !!Object.keys(params.data).length)
+          ? Object.keys(this.context.params.unionFields).map((n, nKey) => (
+            this.context.params.unionFields[n].map((f, fKey) => (
+              params.data.hasOwnProperty(n) && params.data[n].hasOwnProperty(f) &&
+                <span
+                  className='ContextBox__param__item'
+                  key={nKey * this.context.params.unionFields[n].length + fKey}
+                >
+                  {f}={params.data[n][f]}
+                </span>
+            ))
+          ))
+          : '-'
+        }
+      </td>
     )
   };
 
-  _renderTableSubHeaderParams = () => {
-    if (!this.context.metrics.data.length) {
+  _renderTFLogContextItem = (lineData, params) => {
+    if (!this.context.isTFSummaryScalar(lineData)) {
       return null;
     }
 
-    if (!this.doesAimMetricExist()) {
-      return <td>Name / Params</td>;
-    }
-
     return (
-      <>
-        {Object.values(this.context.params.unionFields).flat().map((f, fKey) => (
-          <td key={fKey}>
-            {f}
-          </td>
-        ))}
-      </>
+      <td>
+        {(!!params && !!params.data && !!Object.keys(params.data).length)
+          ? (
+            <>
+              {Object.keys(params.data).map((n, nKey) => (
+                <span className='ContextBox__param__item' key={nKey}>
+                  {n}={params.data[n]}
+                </span>
+              ))}
+              <span className='ContextBox__param__item' key={-1}>
+                ({lineData.name})
+              </span>
+            </>
+          )
+          : lineData.name
+        }
+      </td>
     )
   };
 
@@ -154,33 +187,41 @@ class ContextBox extends Component {
       return null;
     }
 
+    /*
+    {this._renderTableHeaderParams(
+      ['Run', 'Value', 'Step', 'Epoch', ...Object.values(this.context.params.unionFields).flat()],
+      Object.keys(this.context.params.unionFields), 4
+    )}
+     */
+
     return (
       <div className='ContextBox__content'>
         <div className='ContextBox__table__wrapper'>
           <table className='ContextBox__table' cellSpacing={0} cellPadding={0}>
-            <thead>
-              {this.context.params.unionNamespaces.length > 0 &&
-                <tr className='ContextBox__table__header'>
-                  <td key='run'/>
-                  <td key='value' colSpan={3}/>
-                  {this._renderTableHeaderParams()}
-                </tr>
-              }
-              <tr className='ContextBox__table__subheader'>
-                <td>Run</td>
-                <td>Value</td>
-                <td>Step</td>
-                <td>Epoch</td>
-                {this._renderTableSubHeaderParams()}
-              </tr>
-            </thead>
             <tbody>
+              <tr className='ContextBox__table__topheader'>
+                <td>
+                  <UI.Text overline bold>Run</UI.Text>
+                </td>
+                <td>
+                  <UI.Text overline bold>Value</UI.Text>
+                </td>
+                <td>
+                  <UI.Text overline bold>Step</UI.Text>
+                </td>
+                <td>
+                  <UI.Text overline bold>Epoch</UI.Text>
+                </td>
+                <td>
+                  <UI.Text overline bold>Params</UI.Text>
+                </td>
+              </tr>
               {Object.keys(this.context.params.data).map((runHash) => (
                 this._renderItem(runHash, this.context.params.data[runHash])
               ))}
-              {this.context.getTFSummaryScalars().map((s) => (
-                this._renderItem(s.hash, null)
-              ))}
+              {this.context.getTFSummaryScalars().map((s) =>
+                this._renderItem(s.hash, this.context.params.data[s.path])
+              )}
             </tbody>
           </table>
         </div>

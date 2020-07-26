@@ -309,7 +309,7 @@ class HubTagDetailScreen extends React.Component {
           <meta title='' content='' />
         </Helmet>
 
-        <UI.Container size='small' ref={this.contentRef}>
+        <UI.Container size='small'>
           {this._renderContent()}
         </UI.Container>
       </ProjectWrapper>

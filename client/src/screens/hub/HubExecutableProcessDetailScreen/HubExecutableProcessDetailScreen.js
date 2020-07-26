@@ -46,7 +46,7 @@ class HubExecutableProcessDetailScreen extends Component {
       <div>
         <UI.Text className='HubExecutableProcessDetailScreen__name' size={6} header>
           <Link to={buildUrl(screens.HUB_PROJECT_EXECUTABLES, {})}>
-            Executables
+            Processes
           </Link>
           <UI.Text type='grey' inline> / </UI.Text>
           <Link to={buildUrl(screens.HUB_PROJECT_EXECUTABLE_DETAIL, {
@@ -76,7 +76,7 @@ class HubExecutableProcessDetailScreen extends Component {
   render() {
     return (
       <ProjectWrapper>
-        <UI.Container size='small' ref={this.contentRef}>
+        <UI.Container size='small'>
           {this._renderContent()}
         </UI.Container>
       </ProjectWrapper>

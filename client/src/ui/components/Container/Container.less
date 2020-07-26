@@ -16,27 +16,27 @@
 
   @media @sm-min {
     &.standard {
-     width: ~'@{sm-breakpoint}px';
+     width: ~'calc(@{sm-breakpoint}px - @{header-width})';
     }
 
     &.small {
-      width: ~'@{sm-breakpoint}px';
+      width: ~'calc(@{sm-breakpoint}px - @{header-width})';
     }
   }
 
   @media @md-min {
     &.standard {
-     width: ~'@{md-breakpoint}px';
+     width: ~'calc(@{md-breakpoint}px - @{header-width})';
     }
 
     &.small {
-      width: ~'@{md-breakpoint}px';
+      width: ~'calc(@{md-breakpoint}px - @{header-width})';
     }
   }
 
   @media @lg-min {
     &.standard {
-     width: ~'@{lg-breakpoint}px';
+     width: ~'calc(@{lg-breakpoint}px - @{header-width})';
     }
 
     &.small {

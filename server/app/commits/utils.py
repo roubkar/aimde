@@ -2,23 +2,38 @@ import os
 from aimrecords import Storage
 import json
 
-from app.projects.utils import get_project_branches, get_branch_commits
+from app.projects.utils import get_branch_commits
 from app.db import db
-from app.commits.models import Commit, Tag
+from app.commits.models import Commit, Tag, TFSummaryLog
 from artifacts.artifact import Metric
 from adapters.tf_summary_adapter import TFSummaryAdapter
 
 
 PROJECT_PATH = '/store'
-TF_LOGS_PATH = '/tf_logs'
 
 
 def get_run_objects_path(b, c):
     return os.path.join(b, c, 'objects')
 
 
+def get_branches():
+    branches = []
+
+    config_file_path = os.path.join(PROJECT_PATH, 'config.json')
+    if not os.path.isfile(config_file_path):
+        return branches
+
+    with open(config_file_path, 'r') as config_file:
+        config_content = json.loads(config_file.read().strip())
+
+    branches = config_content.get('branches') or []
+    branches = list(map(lambda b: b['name'], branches))
+
+    return branches
+
+
 def get_runs_hashes(tag=None, experiments=None, params=None):
-    project_branches = get_project_branches(PROJECT_PATH)
+    project_branches = get_branches()
 
     # Filter by experiments
     if experiments and isinstance(experiments, str):
@@ -134,11 +149,40 @@ def get_runs_metric(metrics, tag=None, experiments=None, params=None):
     return filtered_runs
 
 
-def get_tf_summary_scalars(tags, exp, params=None):
+def get_tf_summary_scalars(tags, params=None):
     scalars = []
 
-    dir_paths = TFSummaryAdapter.list_log_dir_paths(TF_LOGS_PATH)
+    # Get directory paths
+    dir_paths = TFSummaryAdapter.list_log_dir_paths()
 
+    # Filter by params
+    if params is not None and len(params) > 0:
+        filter_q = None
+        for s_param in params.values():
+            filter_exp = TFSummaryLog.params_json[s_param['key']].astext \
+                         == s_param['value']
+            if filter_q is None:
+                filter_q = filter_exp
+            else:
+                filter_q &= filter_exp
+        searched_logs = db.session.query(TFSummaryLog).filter(filter_q).all()
+        if searched_logs and len(searched_logs) > 0:
+            searched_paths = list(map(lambda l: l.log_path, searched_logs))
+            i = 0
+            while i < len(dir_paths):
+                matched = False
+                for s in searched_paths:
+                    if s == dir_paths[i]:
+                        matched = True
+                        break
+                if matched:
+                    i += 1
+                else:
+                    del dir_paths[i]
+        else:
+            dir_paths = []
+
+    # Get scalar paths
     for dir_path in dir_paths:
         tf = TFSummaryAdapter(dir_path)
         dir_scalars = tf.get_scalars(tags)
@@ -224,10 +268,24 @@ def get_runs_dictionary(tag=None, experiments=None):
     return runs_dicts
 
 
+def get_tf_logs_params():
+    params = {}
+
+    tf_logs = TFSummaryLog.query.filter(TFSummaryLog.is_archived.is_(False))\
+        .all()
+
+    for tf_log in tf_logs:
+        params[tf_log.log_path] = {
+            'data': tf_log.params_json,
+        }
+
+    return params
+
+
 def parse_query(query):
     sub_queries = query.split(' ')
     metrics = tag = experiment = params = steps = None
-    tf_summary = None
+    include = []
     for sub_query in sub_queries:
         if 'metric' in sub_query:
             if metrics is None:
@@ -262,9 +320,9 @@ def parse_query(query):
                     'value': param_val,
                 }
 
-        if 'tf_scalar' in sub_query:
-            _, _, tf_summary = sub_query.rpartition(':')
-            tf_summary = tf_summary.lower().strip().split(',')
+        if 'include' in sub_query:
+            _, _, include_q = sub_query.rpartition(':')
+            include = include_q.lower().strip().split(',')
 
     return {
         'metrics': metrics,
@@ -272,5 +330,5 @@ def parse_query(query):
         'experiment': experiment,
         'params': params,
         'steps': steps,
-        'tf_scalar': tf_summary,
+        'include': include,
     }

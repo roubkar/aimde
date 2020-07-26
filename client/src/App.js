@@ -23,6 +23,7 @@ import HubTagsScreen from './screens/hub/HubTagsScreen/HubTagsScreen';
 import HubTagCreateScreen from './screens/hub/HubTagCreateScreen/HubTagCreateScreen';
 import HubTagDetailScreen from './screens/hub/HubTagDetailScreen/HubTagDetailScreen';
 import AnalyticsPermission from './components/global/AnalyticsPermission/AnalyticsPermission';
+import HubTFSummaryListScreen from './screens/hub/HubTFSummaryListScreen/HubTFSummaryListScreen';
 
 
 class App extends React.Component {
@@ -42,6 +43,9 @@ class App extends React.Component {
 
   componentDidMount() {
     setTimeout(() => this.props.completeProgress(), 150);
+    this.props.getProject().then(() => {
+      this.props.incProgress();
+    });
     this.setAnalytics();
   }
 
@@ -94,14 +98,15 @@ class App extends React.Component {
         <Switch>
           <Route exact path={screens.MAIN} component={HubMainScreen}/>
           <Route exact path={screens.MAIN_SEARCH} component={HubMainScreen}/>
+          <Route exact path={screens.HUB_PROJECT_EXECUTABLES} component={HubExecutablesScreen}/>
+          <Route exact path={screens.HUB_PROJECT_EXECUTABLE_PROCESS_DETAIL} component={HubExecutableProcessDetailScreen}/>
           <Route exact path={screens.HUB_PROJECT_CREATE_EXECUTABLE} component={HubExecutableCreateScreen}/>
           <Route exact path={screens.HUB_PROJECT_EXECUTABLE_DETAIL} component={HubExecutableDetailScreen}/>
-          <Route exact path={screens.HUB_PROJECT_EXECUTABLE_PROCESS_DETAIL} component={HubExecutableProcessDetailScreen}/>
+          <Route exact path={screens.HUB_PROJECT_TAGS} component={HubTagsScreen}/>
           <Route exact path={screens.HUB_PROJECT_CREATE_TAG} component={HubTagCreateScreen}/>
           <Route exact path={screens.HUB_PROJECT_EDIT_TAG} component={HubTagDetailScreen}/>
-          <Route exact path={screens.HUB_PROJECT_TAGS} component={HubTagsScreen}/>
+          <Route exact path={screens.HUB_TF_SUMMARY_LIST} component={HubTFSummaryListScreen}/>
           <Route exact path={screens.HUB_PROJECT_EXPERIMENT} component={HubExperimentScreen}/>
-          <Route exact path={screens.HUB_PROJECT_EXECUTABLES} component={HubExecutablesScreen}/>
           <Route component={SiteNotFoundScreen}/>
         </Switch>
       </BrowserRouter>
@@ -111,7 +116,7 @@ class App extends React.Component {
 
 function RedirectToDefaultExperiment() {
   return (
-    <Redirect to={screens.HUB_PROJECT_EXPERIMENT_INDEX} />
+    <Redirect to={screens.HUB_PROJECT_EXPERIMENT_DEFAULT} />
   )
 }
 

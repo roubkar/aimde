@@ -4,22 +4,6 @@ import json
 from file_read_backwards import FileReadBackwards
 
 
-def get_project_branches(project_path):
-    branches = []
-
-    config_file_path = os.path.join(project_path, 'config.json')
-    if not os.path.isfile(config_file_path):
-        return branches
-
-    with open(config_file_path, 'r') as config_file:
-        config_content = json.loads(config_file.read().strip())
-
-    branches = config_content.get('branches') or []
-    branches = list(map(lambda b: b['name'], branches))
-
-    return branches
-
-
 def get_branch_commits(branch_path):
     commits = {}
     for c in os.listdir(branch_path):
@@ -33,19 +17,6 @@ def get_branch_commits(branch_path):
                 commit_config = {}
             commits[c] = commit_config
     return commits
-
-
-def get_dir_size(start_path):
-    total_size = 0
-
-    for dir_path, dir_names, file_names in os.walk(start_path):
-        for f in file_names:
-            fp = os.path.join(dir_path, f)
-            # skip if it is symbolic link
-            if not os.path.islink(fp):
-                total_size += os.path.getsize(fp)
-
-    return total_size
 
 
 def read_artifact_log(file_path, limit=-1):
