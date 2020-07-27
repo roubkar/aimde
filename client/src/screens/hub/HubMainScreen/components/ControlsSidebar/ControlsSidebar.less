@@ -41,6 +41,21 @@
   }
 }
 
+.ControlsSidebar__item--disabled {
+  opacity: 0.65;
+  cursor: default;
+
+  &:hover {
+    background-color: initial;
+    color: var(--grey);
+  }
+
+  &:active, &.active {
+    background-color: initial;
+    color: var(--grey);
+  }
+}
+
 .ControlsSidebar__menu {
   display: none;
   position: absolute;

@@ -6,6 +6,7 @@ import PropTypes from 'prop-types';
 import { classNames } from '../../../../../utils';
 import UI from '../../../../../ui';
 import HubMainScreenContext from '../../HubMainScreenContext/HubMainScreenContext';
+import ControlsSidebarExport from './components/ControlsSidebarExport/ControlsSidebarExport';
 
 
 class ControlsSidebar extends Component {
@@ -91,6 +92,7 @@ class ControlsSidebar extends Component {
               </div>
             </div>
           </div>
+          <ControlsSidebarExport />
         </div>
       </div>
     );
