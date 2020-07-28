@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import UI from '../../../../../../../ui';
+import { classNames } from '../../../../../../../utils';
+import HubMainScreenContext from '../../../../HubMainScreenContext/HubMainScreenContext';
 
 function ControlsSidebarExport() {
-  // Need to add logic for handling disabled state
-  let disabled = false;
+  let hubMainScreenContextValue = useContext(HubMainScreenContext);
+  let [exportIsDisabled, setExportDisabled] = useState(hubMainScreenContextValue.metrics.isLoading || hubMainScreenContextValue.metrics.isEmpty);
+
+  useEffect(() => {
+    setExportDisabled(hubMainScreenContextValue.metrics.isLoading || hubMainScreenContextValue.metrics.isEmpty);
+  }, [hubMainScreenContextValue.metrics.isLoading, hubMainScreenContextValue.metrics.isEmpty]);
 
   function exportPanel() {
-    // Need to implement more declarative approach for getting svg element
+    // FIXME: Need to implement more declarative approach for getting svg element (#64)
     let svgElement = document.querySelector('svg');
     if (svgElement) {
       let { width, height } = svgElement.getBBox();
@@ -45,9 +51,12 @@ function ControlsSidebarExport() {
 
   return (
     <div
-      className={`ControlsSidebar__item ${disabled ? 'ControlsSidebar__item--disabled' : ''}`.trim()}
+      className={classNames({
+        ControlsSidebar__item: true,
+        disabled: exportIsDisabled
+      })}
       onClick={exportPanel}
-      title={disabled ? 'Export is disabled' : 'Export panel as JPEG'}
+      title={exportIsDisabled ? 'Export is disabled' : 'Export panel as JPEG'}
     >
       <UI.Icon i='nc-square-download' scale={1.4} />
     </div>
