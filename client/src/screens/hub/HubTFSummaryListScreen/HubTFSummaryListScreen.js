@@ -8,6 +8,7 @@ import ProjectWrapper from '../../../wrappers/hub/ProjectWrapper/ProjectWrapper'
 import UI from '../../../ui';
 import * as storeUtils from '../../../storeUtils';
 import * as classes from '../../../constants/classes';
+import * as analytics from '../../../services/analytics';
 
 
 class HubTFSummaryListScreen extends Component {
@@ -32,6 +33,9 @@ class HubTFSummaryListScreen extends Component {
 
   componentDidMount() {
     this.listTFSummary();
+
+    // Analytics
+    analytics.pageView('tf_logs');
   }
 
   listTFSummary = () => {

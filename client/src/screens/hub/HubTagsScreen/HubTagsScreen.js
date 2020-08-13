@@ -10,6 +10,7 @@ import * as storeUtils from '../../../storeUtils';
 import * as classes from '../../../constants/classes';
 import * as screens from '../../../constants/screens';
 import { buildUrl } from '../../../utils';
+import * as analytics from '../../../services/analytics';
 
 
 class HubTagsScreen extends React.Component {
@@ -30,6 +31,9 @@ class HubTagsScreen extends React.Component {
     this.props.incProgress();
 
     this.getTags(this.props.completeProgress);
+
+    // Analytics
+    analytics.pageView('tags');
   }
 
   getTags = (finallyCallback) => {

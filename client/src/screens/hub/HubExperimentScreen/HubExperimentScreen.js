@@ -19,6 +19,7 @@ import * as screens from '../../../constants/screens';
 import CommitNavigation from '../../../components/hub/CommitNavigation/CommitNavigation';
 import IncompatibleVersion from '../../../components/global/IncompatibleVersion/IncompatibleVersion';
 import CurrentRunIndicator from '../../../components/hub/CurrentRunIndicator/CurrentRunIndicator';
+import * as analytics from '../../../services/analytics';
 
 
 class HubExperimentScreen extends React.Component {
@@ -54,6 +55,9 @@ class HubExperimentScreen extends React.Component {
     this.getTags();
     this.handleResize();
     window.addEventListener('resize', this.handleResize);
+
+    // Analytics
+    analytics.pageView('experiment');
   }
 
   componentWillUnmount() {

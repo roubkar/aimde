@@ -12,6 +12,7 @@ import * as classes from '../../../constants/classes';
 import * as screens from '../../../constants/screens';
 import RunningExecutablesList from '../../../components/hub/RunningExecutablesList/RunningExecutablesList';
 import { buildUrl } from '../../../utils';
+import * as analytics from '../../../services/analytics';
 
 
 class HubExecutablesScreen extends React.Component {
@@ -44,6 +45,9 @@ class HubExecutablesScreen extends React.Component {
         })),
       })
     }).finally(() => this.props.completeProgress());
+
+    // Analytics
+    analytics.pageView('processes');
   }
 
   handleExecuteBtnClick = (execIdx, executableId) => {

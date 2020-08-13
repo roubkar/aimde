@@ -16,6 +16,7 @@ import SearchBar from './components/SearchBar/SearchBar';
 import ContextBox from './components/ContextBox/ContextBox';
 import ControlsSidebar from './components/ControlsSidebar/ControlsSidebar';
 import { randomStr, sortOnKeys, buildUrl, getObjectValueByPath } from '../../../utils';
+import * as analytics from '../../../services/analytics';
 
 
 class HubMainScreen extends React.Component {
@@ -106,6 +107,9 @@ class HubMainScreen extends React.Component {
     this.updateWindowDimensions();
     window.addEventListener('resize', () => this.updateWindowDimensions());
     this.recoverStateFromURL(window.location.search);
+
+    // Analytics
+    analytics.pageView('search');
   }
 
   componentWillUnmount() {
@@ -218,6 +222,9 @@ class HubMainScreen extends React.Component {
       if (state.search.query !== null) {
         setItem(USER_LAST_SEARCH_QUERY, state.search.query);
       }
+
+      // Analytics
+      analytics.pageView('search');
     }
   };
 
