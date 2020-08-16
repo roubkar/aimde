@@ -11,67 +11,38 @@ import UI from '../../../../../ui';
 
 
 class ContextBox extends Component {
-  aimMetricExists = () => {
-    for (let m in this.context.metrics.data) {
-      if (this.context.isAimRun(this.context.metrics.data[m])) {
-        return true;
-      }
-    }
-  };
-
   formatValue = (v) => {
     return v ? Math.round(v * 10e6) / 10e6 : 0;
   };
 
-  _renderTableHeaderParams = (params, paramGroups=null, paramGroupsGap=null) => {
-    if (!params || !params.length) {
-      return null;
-    }
+  _renderRow = (run, metric, trace) => {
+    const step = this.context.chart.focused.step;
+    const contextHash = this.context.contextToHash(trace.context);
 
-    return (
-      <>
-        {!!paramGroups && !!paramGroups.length &&
-          <tr className='ContextBox__table__header'>
-            {!!paramGroupsGap &&
-              <td colSpan={paramGroupsGap} />
-            }
-            {paramGroups.map((n, nKey) => (
-              <td key={nKey} colSpan={this.context.params.unionFields[n].length}>
-                {n}
-              </td>
-            ))}
-          </tr>
-        }
-        {!!params && !!params.length &&
-          <tr className='ContextBox__table__subheader'>
-            {params.map((f, fKey) => (
-              <td key={fKey}>
-                {f}
-              </td>
-            ))}
-          </tr>
-        }
-      </>
-    )
-  };
+    const line = this.context.getTraceData(run.run_hash, metric.name, contextHash);
 
-  _renderItem = (hash, params) => {
-    const index = this.context.chart.focused.index;
-    const lineData = this.context.getMetricByHash(hash);
-    if (lineData === null) {
-      return null;
-    }
+    let stepData = null;
+    stepData = this.context.getMetricStepDataByStepIdx(line.data, step);
+    // if (line.data.length > 0 && step > line.data[line.data.length-1][1]) {
+    //   stepData = this.context.getMetricStepDataByStepIdx(line.data, line.data[line.data.length-1][1]);
+    // } else {
+    //   stepData = this.context.getMetricStepDataByStepIdx(line.data, step);
+    // }
 
-    const stepData = this.context.getMetricStepDataByStepIdx(lineData.data, index);
-
-    const color = this.context.getMetricColor(lineData);
+    const color = this.context.getMetricColor(line.run, line.metric, line.trace);
     const colorObj = Color(color);
 
-    const circleMetricIndex = this.context.chart.focused.circle.metricIndex;
+    const focusedCircle = this.context.chart.focused.circle;
+    const focusedMetric = this.context.chart.focused.metric;
     let active = false;
-    if (this.context.chart.focused.metric.hash === hash
-      || (circleMetricIndex !== null && this.context.metrics.data[circleMetricIndex] !== null
-        && this.context.metrics.data[circleMetricIndex].hash === hash)) {
+    if ((
+      focusedCircle.runHash === run.run_hash
+      && focusedCircle.metricName === metric.name
+      && focusedCircle.traceContext === contextHash)
+      || (
+        focusedMetric.runHash === run.run_hash
+      && focusedMetric.metricName === metric.name
+      && focusedMetric.traceContext === contextHash)) {
       active = true;
     }
 
@@ -88,10 +59,12 @@ class ContextBox extends Component {
       };
     }
 
-    const isAimRun = this.context.isAimRun(lineData);
+    // if (!this.context.isTFSummaryScalar(lineData)) {
+    //   return null;
+    // }
 
     return (
-      <tr className={className} style={style} key={hash}>
+      <tr className={className} style={style} key={`${run.run_hash}/${metric.name}/${contextHash}`}>
         <td>
           <div
             className='ContextBox__table__item__run'
@@ -100,99 +73,93 @@ class ContextBox extends Component {
             }}
           >
             <div className='ContextBox__table__item__tag__dot' style={{ backgroundColor: color }} />
-            {isAimRun && !!lineData.tag &&
-            `${lineData.tag.name}: `
+            {this.context.isTFSummaryScalar(run)
+              ? 'TF:'
+              : `${run.experiment_name}/`
             }
-            {!!lineData.date &&
-            moment.unix(lineData.date).format('HH:mm · D MMM, YY')
+            {metric.name}
+            {!!trace.context &&
+              <>
+                {' ['}
+                <div className='ContextBox__table__item__context'>
+                  {Object.keys(trace.context).map((contextCat, contextCatKey) =>
+                    <UI.Text inline key={contextCatKey}>{contextCat}: {trace.context[contextCat]}</UI.Text>
+                  )}
+                </div>
+                {']'}
+              </>
             }
           </div>
         </td>
         <td>
-          {stepData !== null ? this.formatValue(stepData.value) : '-'}
+          {stepData !== null && stepData[0] !== null ? this.formatValue(stepData[0]) : '-'}
         </td>
         <td>
-          {stepData !== null ? stepData.step : '-'}
+          {stepData !== null && stepData[1] !== null ? stepData[1] : '-'}
         </td>
         <td>
-          {stepData !== null && stepData.epoch !== null ? stepData.epoch : '-'}
+          {stepData !== null && stepData[2] !== null ? stepData[2] : '-'}
         </td>
-        {isAimRun
-          ? this._renderAimRunContextItem(lineData, params)
-          : this._renderTFLogContextItem(lineData, params)
-        }
+        <td>
+          {stepData !== null && stepData[3] !== null ? moment.unix(stepData[3]).format('HH:mm:ss · D MMM, YY') : '-'}
+        </td>
+        <td>
+          {this._renderRowParams(run.params) || '-'}
+        </td>
       </tr>
     );
   };
 
-  _renderAimRunContextItem = (lineData, params) => {
-    if (!this.context.isAimRun(lineData)) {
-      return null;
-    }
+  _renderRowParams = (param, paramName) => {
+    if (typeof param === 'object') {
+      if (Object.keys(param).length === 0) {
+        return null;
+      }
 
-    return (
-      <td>
-        {(!!params && !!params.data && !!Object.keys(params.data).length)
-          ? Object.keys(this.context.params.unionFields).map((n, nKey) => (
-            this.context.params.unionFields[n].map((f, fKey) => (
-              params.data.hasOwnProperty(n) && params.data[n].hasOwnProperty(f) &&
-                <span
-                  className='ContextBox__param__item'
-                  key={nKey * this.context.params.unionFields[n].length + fKey}
-                >
-                  {f}={params.data[n][f]}
-                </span>
-            ))
-          ))
-          : '-'
-        }
-      </td>
-    )
+      return (
+        <div className='ContextBox__param__items'>
+          {!!paramName &&
+            <UI.Text className='ContextBox__param__items__name'>{paramName}:</UI.Text>
+          }
+          {Object.keys(param).map((paramName, paramValKey) =>
+            <div
+              className='ContextBox__param__item'
+              key={paramValKey}
+            >
+              {this._renderRowParams(param[paramName], paramName)}
+            </div>
+          )}
+        </div>
+      )
+    } else if (Array.isArray(param)) {
+      return <UI.Text>{paramName}={JSON.stringify(param)}</UI.Text>
+    } else {
+      return <UI.Text>{paramName}={param}</UI.Text>
+    }
   };
 
-  _renderTFLogContextItem = (lineData, params) => {
-    if (!this.context.isTFSummaryScalar(lineData)) {
-      return null;
-    }
-
+  _renderRows = () => {
     return (
-      <td>
-        {(!!params && !!params.data && !!Object.keys(params.data).length)
-          ? (
-            <>
-              {Object.keys(params.data).map((n, nKey) => (
-                <span className='ContextBox__param__item' key={nKey}>
-                  {n}={params.data[n]}
-                </span>
-              ))}
-              <span className='ContextBox__param__item' key={-1}>
-                ({lineData.name})
-              </span>
-            </>
+      <>
+        {this.context.runs.data.map((run) =>
+          run.metrics.map((metric) =>
+            metric.traces.map((trace) =>
+              this._renderRow(run, metric, trace)
+            )
           )
-          : lineData.name
-        }
-      </td>
-    )
+        )}
+      </>
+    );
   };
 
   _renderContent = () => {
-    if (this.context.metrics.isLoading || (this.context.metrics.data.length && this.context.params.isLoading)) {
+    if (this.context.runs.isLoading) {
       return <UI.Text type='grey' center spacingTop>Loading..</UI.Text>
     }
 
-    if (!this.context.metrics.data.length
-      || !this.context.params.unionFields
-      || !this.context.params.unionNamespaces) {
+    if (this.context.runs.isEmpty || !this.context.runs.data.length) {
       return null;
     }
-
-    /*
-    {this._renderTableHeaderParams(
-      ['Run', 'Value', 'Step', 'Epoch', ...Object.values(this.context.params.unionFields).flat()],
-      Object.keys(this.context.params.unionFields), 4
-    )}
-     */
 
     return (
       <div className='ContextBox__content'>
@@ -201,7 +168,7 @@ class ContextBox extends Component {
             <tbody>
               <tr className='ContextBox__table__topheader'>
                 <td>
-                  <UI.Text overline bold>Run</UI.Text>
+                  <UI.Text overline bold>Metric</UI.Text>
                 </td>
                 <td>
                   <UI.Text overline bold>Value</UI.Text>
@@ -213,21 +180,18 @@ class ContextBox extends Component {
                   <UI.Text overline bold>Epoch</UI.Text>
                 </td>
                 <td>
-                  <UI.Text overline bold>Params</UI.Text>
+                  <UI.Text overline bold>Time</UI.Text>
+                </td>
+                <td>
+                  <UI.Text overline bold>Parameters</UI.Text>
                 </td>
               </tr>
-              {Object.keys(this.context.params.data).map((runHash) => (
-                this._renderItem(runHash, this.context.params.data[runHash])
-              ))}
-              {this.context.getTFSummaryScalars().map((s) =>
-                this._renderItem(s.hash, this.context.params.data[s.path])
-              )}
+              {this._renderRows()}
             </tbody>
           </table>
         </div>
       </div>
     );
-
   };
 
   render() {

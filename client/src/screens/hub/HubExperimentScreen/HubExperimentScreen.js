@@ -103,7 +103,7 @@ class HubExperimentScreen extends React.Component {
   };
 
   onIndex = () => {
-    return this.props.match.params.commit_id === 'index';
+    return false;
   };
 
   WSOpen = () => {
@@ -286,9 +286,7 @@ class HubExperimentScreen extends React.Component {
   };
 
   getExperiment = () => {
-    if (this.onIndex()) {
-      this.WSOpen();
-    }
+    this.props.incProgress();
 
     let experimentName = this.props.match.params.experiment_name,
       commitId = this.props.match.params.commit_id;
@@ -321,17 +319,17 @@ class HubExperimentScreen extends React.Component {
           selectedModel: !!data.models ? data.models[0] : false,
         };
       }, () => {
-        if (data.metrics) {
-          const metricsData = {};
-          data.metrics.forEach((item) => {
-            metricsData[item.name] = {
-              data: item.data,
-              rerender: true,
-            };
-            this.metricSubscribeToUpdates(item.name, item.format);
-          });
-          this.setState({ metricsData });
-        }
+        // if (data.metrics) {
+        //   const metricsData = {};
+        //   data.metrics.forEach((item) => {
+        //     metricsData[item.name] = {
+        //       data: item.data,
+        //       rerender: true,
+        //     };
+        //     this.metricSubscribeToUpdates(item.name, item.format);
+        //   });
+        //   this.setState({ metricsData });
+        // }
       });
     }).catch((err) => {
       if (err.status === 501) {
@@ -377,17 +375,24 @@ class HubExperimentScreen extends React.Component {
   };
 
   _renderMetric = (metric, key) => {
-    const data = this.state.metricsData[metric.name].data;
-
     return (
-      <ExperimentCell type='metric' footerTitle={metric.name} key={key * 10 + 5}>
-        <UI.LineChart
-          key={key}
-          header={metric.name}
-          data={data}
-          rerender={this.state.metricsData[metric.name].rerender}
-          xAxisFormat='step' />
-      </ExperimentCell>
+      <>
+        {metric.traces.map((trace, traceKey) =>
+          <ExperimentCell
+            type='metric'
+            footerTitle={metric.name}
+            footerLabels={(!!trace.context ? Object.keys(trace.context).map(c => `${c}: ${trace.context[c]}`) : [])}
+            key={`${key * 10 + 5}-${traceKey}`}
+          >
+            <UI.LineChart
+              header={metric.name}
+              data={trace.data}
+              xAxisFormat='step'
+              smooth={false}
+            />
+          </ExperimentCell>
+        )}
+      </>
     )
   };
 

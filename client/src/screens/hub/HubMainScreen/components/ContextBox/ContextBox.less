@@ -99,6 +99,37 @@
   margin-right: var(--component-spacing-sm);
 }
 
+.ContextBox__table__item__context {
+  display: inline-block;
+
+  > * {
+    margin-right: 5px;
+
+    &:after {
+      content: ',';
+      display: inline;
+    }
+
+    &:last-child {
+      margin-right: 0;
+      &:after {
+        content: '';
+      }
+    }
+  }
+}
+
+.ContextBox__param__items {
+  display: inline-block;
+  margin-right: 10px;
+}
+
+.ContextBox__param__items__name {
+  display: inline-block;
+  margin-right: 10px;
+}
+
 .ContextBox__param__item {
+  display: inline-block;
   margin-right: 10px;
 }

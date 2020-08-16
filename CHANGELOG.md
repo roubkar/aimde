@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.11 Aug 15 2020
+- Fix panel height issue (gorarakelyan)
+
+## 1.0.10 Aug 14 2020
+- Integrate runs search powered by AimQL (gorarakelyan)
+
 ## 1.0.9 Jul 29 2020
 - Add segments integration (gorarakelyan)
 

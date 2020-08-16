@@ -301,7 +301,7 @@ class HubTFSummaryListScreen extends Component {
               this.state.formSummary.map((row, rowKey) =>
                 row.length > 1 &&
                 <UI.Text key={rowKey} small>
-                  param:{row[0]}={row[1]}
+                  params.{row[0]} == {row[1]}
                 </UI.Text>
               )}
           </div>

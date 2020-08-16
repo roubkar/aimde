@@ -137,7 +137,7 @@ export default class LineChart extends React.Component {
 
       series.push({
         type: 'line',
-        data: data[s].map(i => Math.round(i*10e8)/10e8),
+        data: data[s],
         color: colors[s % colors.length],
         lineWidth: 1,
         tooltip: {

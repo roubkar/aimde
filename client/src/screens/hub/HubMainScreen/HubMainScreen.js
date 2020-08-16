@@ -10,12 +10,12 @@ import * as screens from '../../../constants/screens';
 import * as storeUtils from '../../../storeUtils';
 import HubMainScreenContext from './HubMainScreenContext/HubMainScreenContext';
 import { setItem, getItem } from '../../../services/storage';
-import { USER_LAST_SEARCH_QUERY } from '../../../config';
+import { USER_LAST_SEARCH_QUERY, AIM_QL_VERSION } from '../../../config';
 import Panel from './components/Panel/Panel';
 import SearchBar from './components/SearchBar/SearchBar';
 import ContextBox from './components/ContextBox/ContextBox';
 import ControlsSidebar from './components/ControlsSidebar/ControlsSidebar';
-import { randomStr, sortOnKeys, buildUrl, getObjectValueByPath } from '../../../utils';
+import { randomStr, deepEqual, buildUrl, getObjectValueByPath } from '../../../utils';
 import * as analytics from '../../../services/analytics';
 
 
@@ -32,15 +32,18 @@ class HubMainScreen extends React.Component {
         // Chart config
         chart: {
           focused: {
-            index: null,
+            step: null,
             metric: {
-              hash: null,
-              index: null,
+              runHash: null,
+              metricName: null,
+              traceContext: null,
             },
             circle: {
               active: false,
-              metricIndex: null,
-              stepIndex: null,
+              runHash: null,
+              metricName: null,
+              traceContext: null,
+              step: null,
             },
           },
           settings: {
@@ -48,25 +51,17 @@ class HubMainScreen extends React.Component {
           },
         },
 
-        // Chart data(metrics)
-        metrics: {
+        // Chart data - runs
+        runs: {
           isLoading: false,
           isEmpty: true,
-          data: [],
-        },
-
-        // Context data(params)
-        params: {
-          isLoading: false,
-          isEmpty: true,
-          unionNamespaces: [],
-          unionFields: {},
-          data: {},
+          data: null,
         },
 
         // Search
         search: {
           query: undefined,
+          v: AIM_QL_VERSION,
         },
         searchInput: {
           value: undefined,
@@ -86,7 +81,7 @@ class HubMainScreen extends React.Component {
       'search',
     ];
 
-    this.defaultSearchQuery = 'metric:loss';
+    this.defaultSearchQuery = 'loss';
   }
 
   componentWillMount() {
@@ -137,11 +132,15 @@ class HubMainScreen extends React.Component {
       }
 
       const state = this.URLSearchToState(search);
+      if (state.search.v !== AIM_QL_VERSION) {
+        return;
+      }
+
       //   if (this.state.context.search.query === undefined && state.search.query === undefined) {
       //     state.search.query = this.defaultSearchQuery;
       //   }
 
-      if (JSON.stringify(state.search) !== JSON.stringify(this.state.context.search)) {
+      if (!deepEqual(state.search, this.state.context.search)) {
         this.setSearchState(state.search, () => {
           this.searchByQuery(false).then(() => {
             this.setChartFocusedState(state.chart.focused, null, false);
@@ -190,8 +189,8 @@ class HubMainScreen extends React.Component {
     }
 
     for (let p in this.URLStateParams) {
-      if (JSON.stringify(getObjectValueByPath(state, this.URLStateParams[p]))
-        !== JSON.stringify(getObjectValueByPath(this.state.context, this.URLStateParams[p]))) {
+      if (!deepEqual(getObjectValueByPath(state, this.URLStateParams[p]),
+        getObjectValueByPath(this.state.context, this.URLStateParams[p]))) {
         return true;
       }
     }
@@ -212,6 +211,7 @@ class HubMainScreen extends React.Component {
       },
       search: {
         query: this.state.context.search.query,
+        v: this.state.context.search.v,
       },
     };
 
@@ -238,14 +238,14 @@ class HubMainScreen extends React.Component {
     }));
   };
 
-  setMetricsState = (metricsState, callback=null) => {
+  setRunsState = (runsState, callback=null) => {
     this.setState(prevState => ({
       ...prevState,
       context: {
         ...prevState.context,
-        metrics: {
-          ...prevState.context.metrics,
-          ...metricsState,
+        runs: {
+          ...prevState.context.runs,
+          ...runsState,
         },
       },
     }), () => {
@@ -253,23 +253,6 @@ class HubMainScreen extends React.Component {
         callback();
       }
       this.reRenderChart();
-    });
-  };
-
-  setParamsState = (paramsState, callback=null) => {
-    this.setState(prevState => ({
-      ...prevState,
-      context: {
-        ...prevState.context,
-        params: {
-          ...prevState.context.params,
-          ...paramsState,
-        },
-      },
-    }), () => {
-      if (callback !== null) {
-        callback();
-      }
     });
   };
 
@@ -354,93 +337,59 @@ class HubMainScreen extends React.Component {
     }, callback, updateURL);
   };
 
-  getMetricsByQuery = (query) => {
-    return new Promise(resolve => {
-      this.setMetricsState({ isLoading: true });
+  getRunsByQuery = (query) => {
+    return new Promise((resolve, reject) => {
+      this.setRunsState({ isLoading: true });
       this.props.getCommitsMetricsByQuery(query).then((data) => {
-        this.setMetricsState({
-          isEmpty: !data || Object.values(data).length === 0,
-          data: data,
+        this.setRunsState({
+          isEmpty: !data.runs || data.runs.length === 0,
+          data: data.runs,
+        }, resolve);
+      }).catch((err) => {
+        // console.log(err, err.status);
+        this.setRunsState({
+          isEmpty: true,
+          data: null,
         }, resolve);
       }).finally(() => {
-        this.setMetricsState({ isLoading: false });
-      });
-    });
-  };
-
-  getParamsByQuery = (query) => {
-    return new Promise(resolve => {
-      this.setParamsState({ isLoading: true });
-
-      this.props.getCommitsDictionariesByQuery(query).then((data) => {
-        let unionNamespaces = [];
-        let unionFields = {};
-
-        for (let i in data) {
-          if (!!data[i].data && Object.keys(data[i].data).length) {
-            unionNamespaces = unionNamespaces.concat(...Object.keys(data[i].data));
-          }
-        }
-        unionNamespaces = Array.from(new Set(unionNamespaces));
-
-        if (unionNamespaces.length) {
-          for (let n in unionNamespaces) {
-            unionFields[unionNamespaces[n]] = [];
-          }
-          for (let i in data) {
-            Object.keys(data[i].data).forEach(n => {
-              unionFields[n] = unionFields[n].concat(...Object.keys(data[i].data[n]));
-            });
-          }
-          for (let n in unionNamespaces) {
-            unionFields[unionNamespaces[n]] = Array.from(new Set(unionFields[unionNamespaces[n]])).sort();
-          }
-        }
-        unionFields = sortOnKeys(unionFields);
-
-        this.setParamsState({
-          isEmpty: !unionNamespaces || unionNamespaces.length === 0,
-          unionNamespaces,
-          unionFields,
-          data: data,
-        }, resolve);
-      }).finally(() => {
-        this.setParamsState({ isLoading: false });
+        this.setRunsState({ isLoading: false });
       });
     });
   };
 
   getTFSummaryScalars = () => {
-    return this.state.context.metrics.data.filter(m => m.source !== undefined && m.source === 'tf_summary');
+    return this.state.context.runs.data.filter(m => m.source !== undefined && m.source === 'tf_summary');
   };
 
-  isAimRun = (lineData) => {
-    // Returns `true` if run is tracked via Aim(not loaded from tf summary)
-    return lineData['source'] === undefined;
+  isAimRun = (run) => {
+    return run['source'] === undefined;
   };
 
-  isTFSummaryScalar = (lineData) => {
-    // Returns `true` if run is imported from TF summary
-    return lineData['source'] === 'tf_summary';
+  isTFSummaryScalar = (run) => {
+    return run['source'] === 'tf_summary';
   };
 
   searchByQuery = (updateURL) => {
     return new Promise(resolve => {
       const query = this.state.context.search.query.trim();
       this.setChartFocusedState({
-        index: null,
+        step: null,
         metric: {
-          hash: null,
-          index: null,
+          runHash: null,
+          metricName: null,
+          traceContext: null,
         },
         circle: {
-          metricIndex: null,
-          stepIndex: null,
+          active: false,
+          runHash: null,
+          metricName: null,
+          traceContext: null,
+          step: null,
         },
       }, () => {
         Promise.all([
-          this.getMetricsByQuery(query),
-          this.getParamsByQuery(query),
+          this.getRunsByQuery(query),
+          // Get other properties
         ]).then(() => {
           resolve();
         });
@@ -449,29 +398,71 @@ class HubMainScreen extends React.Component {
   };
 
   getMetricByHash = (hash) => {
-    for (let i in this.state.context.metrics.data) {
-      if (this.state.context.metrics.data[i].hash === hash) {
-        return this.state.context.metrics.data[i];
+    for (let i in this.state.context.runs.data) {
+      if (this.state.context.runs.data[i].hash === hash) {
+        return this.state.context.runs.data[i];
       }
     }
     return null;
   };
 
-  getMetricStepValueByStepIdx = (metricData, stepIdx) => {
-    const item = this.getMetricStepDataByStepIdx(metricData, stepIdx);
-    return item ? item.value : null;
+  getMetricStepValueByStepIdx = (data, step) => {
+    const item = this.getMetricStepDataByStepIdx(data, step);
+    return item ? item[0] : null;
   };
 
-  getMetricStepDataByStepIdx = (metricData, stepIdx) => {
-    for (let i = 0; i < metricData.length; i++) {
-      if (metricData[i].step === stepIdx) {
-        return metricData[i];
-      } else if (metricData[i].step > stepIdx) {
+  getMetricStepDataByStepIdx = (data, step) => {
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][1] === step) {
+        return data[i];
+      } else if (data[i][1] > step) {
         return null;
       }
     }
 
     return null;
+  };
+
+  getTraceData = (runHash, metricName, context) => {
+    let matchedRun = null, matchedMetric = null, matchedTrace = null, data = null;
+
+    this.state.context.runs.data.forEach((run) => {
+      if (matchedTrace !== null) return;
+      run.metrics.forEach((metric) => {
+        if (matchedTrace !== null) return;
+        metric.traces.forEach((trace) => {
+          if (matchedTrace !== null) return;
+          if (run.run_hash === runHash && metric.name === metricName && this.contextToHash(trace.context) === context) {
+            if (matchedTrace === null) {
+              matchedRun = run;
+              matchedMetric = metric;
+              matchedTrace = trace;
+              data = trace.data;
+            }
+          }
+        });
+      });
+    });
+
+    return {
+      data,
+      run: matchedRun,
+      metric: matchedMetric,
+      trace: matchedTrace,
+    };
+  };
+
+  contextToHash = (context) => {
+    // FIXME: Change encoding algorithm to base58
+    return btoa(JSON.stringify(context)).replace(/[\=\+\/]/g, '');
+  };
+
+  traceToHash = (runHash, metricName, traceContext) => {
+    if (typeof traceContext !== 'string' ) {
+      traceContext = this.contextToHash(traceContext);
+    }
+    // FIXME: Change encoding algorithm to base58
+    return btoa(`${runHash}/${metricName}/${traceContext}`).replace(/[\=\+\/]/g, '');
   };
 
   hashToColor = (hash, alpha=1) => {
@@ -482,12 +473,10 @@ class HubMainScreen extends React.Component {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  getMetricColor = (metric, alpha=1) => {
-    if (metric.tag && metric.tag.color) {
-      return metric.tag.color;
-    }
-
-    return this.hashToColor(metric.hash, alpha);
+  getMetricColor = (run, metric, trace, alpha=1) => {
+    // TODO: Add conditional coloring
+    const hash = this.traceToHash(run.run_hash, metric.name, trace.context);
+    return this.hashToColor(hash, alpha);
   };
 
   _renderContent = () => {
@@ -542,21 +531,24 @@ class HubMainScreen extends React.Component {
             ...this.state.context,
 
             // Pass methods
-            updateURL                   : this.updateURL,
+            searchByQuery               : this.searchByQuery,
             setChartSettingsState       : this.setChartSettingsState,
             setChartFocusedState        : this.setChartFocusedState,
             setSearchState              : this.setSearchState,
             setSearchInputValue         : this.setSearchInputValue,
-            setMetricsState             : this.setMetricsState,
-            searchByQuery               : this.searchByQuery,
+            setRunsState                : this.setRunsState,
             getMetricByHash             : this.getMetricByHash,
+            getTraceData                : this.getTraceData,
             getMetricStepValueByStepIdx : this.getMetricStepValueByStepIdx,
             getMetricStepDataByStepIdx  : this.getMetricStepDataByStepIdx,
             getTFSummaryScalars         : this.getTFSummaryScalars,
+            getMetricColor              : this.getMetricColor,
             isAimRun                    : this.isAimRun,
             isTFSummaryScalar           : this.isTFSummaryScalar,
             hashToColor                 : this.hashToColor,
-            getMetricColor              : this.getMetricColor,
+            contextToHash               : this.contextToHash,
+            traceToHash                 : this.traceToHash,
+            updateURL                   : this.updateURL,
           }}
         >
           {this._renderContent()}

@@ -102,7 +102,7 @@ class Header extends React.Component {
             </div>
             <div className='Header__items bottom'>
               <div className='Header__item__wrapper'>
-                <a className='link' href='https://docs.aimstack.io' target='_blank' rel='noreferrer noopener'>
+                <a className='link' href='https://github.com/aimhubio/aim#contents' target='_blank' rel='noreferrer noopener'>
                   <div className='Header__item'>
                     <UI.Icon i='nc-single-folded-content' className='Header__item__icon' />
                     <UI.Text className='Header__item__title'>Docs</UI.Text>

@@ -37,3 +37,20 @@
   border: 1px solid var(--primary-lighter);
   border-radius: 0 0 var(--border-radius) var(--border-radius);
 }
+
+.ExperimentCell__footer__title {
+  + .ExperimentCell__footer__labels {
+    margin-left: var(--component-spacing-sm);
+  }
+}
+
+.ExperimentCell__footer__labels {
+  display: inline-block;
+}
+
+.ExperimentCell__footer__label {
+  background-color: var(--primary-lighter) !important;
+  color: var(--primary-dark) !important;
+  border: 1px solid var(--primary-light);
+  margin-right: var(--component-spacing-sm);
+}

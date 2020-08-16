@@ -71,10 +71,10 @@ class TFSummaryAdapter:
                     self.tags.add(t)
 
     def get_scalars(self, filter_tags):
-        scalars = {}
-
         if len(self.ea_list) == 0 or self.tags == 0:
-            return scalars
+            return []
+
+        scalars = {}
 
         # Get data
         for ea in self.ea_list:
@@ -88,26 +88,30 @@ class TFSummaryAdapter:
                 if filter_tag_match is not None:
                     records = ea['eq'].Scalars(filter_tag_match)
                     scalars.setdefault(filter_tag, {
-                        'data': [],
+                        'name': filter_tag,
+                        'traces': [{
+                            'context': None,
+                            'data': [],
+                            'num_records': 0,
+                        }],
                         'tag': {
                             'name': filter_tag_match,
                         },
                     })
                     for idx, r in enumerate(records):
-                        scalars[filter_tag]['data'].append({
-                            'step': idx,
-                            'value': r.value,
-                            'time': r.wall_time,
-                            'local_step': r.step,
-                            'epoch': None,
-                        })
+                        scalars[filter_tag]['traces'][0]['data'].append([
+                            r.value,
+                            idx,
+                            None,
+                            r.wall_time,
+                            r.step,
+                        ])
 
         # Set scalar properties
         for scalar in scalars.values():
             _, _, name = self.dir_path[1:].partition('/')
-            scalar['name'] = name
-            scalar['path'] = self.dir_path
-            scalar['hash'] = self.name_to_hash(name)
+            # scalar['path'] = self.dir_path
+            # scalar['hash'] = self.name_to_hash(name)
 
             # Order data by step and remove duplications
             # seen_steps = set()
@@ -121,10 +125,10 @@ class TFSummaryAdapter:
             #         del scalar['data'][record_idx]
             # scalar['data'] = sorted(scalar['data'], key=lambda r: r['step'])
 
-            scalar['num_steps'] = len(scalar['data'])
-            date = int(scalar['data'][0]['time']) if len(scalar['data']) else 0
-            scalar['date'] = date
-            scalar['msg'] = date
-            scalar['source'] = 'tf_summary'
+            scalar['traces'][0]['num_steps'] = len(scalar['traces'][0]['data'])
+            # date = int(scalar['data'][0]['time'])
+            # if len(scalar['data']) else 0
+            # scalar['date'] = date
+            # scalar['msg'] = date
 
         return list(scalars.values())

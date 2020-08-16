@@ -1,7 +1,13 @@
 import json
 
-from flask import Blueprint, jsonify, request, \
-    abort, make_response, send_from_directory
+from flask import (
+    abort,
+    request,
+    jsonify,
+    Blueprint,
+    make_response,
+    send_from_directory,
+)
 from flask_restful import Api, Resource
 
 from app import App
@@ -68,23 +74,6 @@ class ExecutableListApi(Resource):
 class ExecutableExecuteApi(Resource):
     def post(self):
         return
-
-        # command_form = clear_form(request.form)
-        #
-        # if not command_form.get('script_path'):
-        #     return make_response(jsonify({}), 403)
-        #
-        # pid = execute_process(command_form.get('name'),
-        #                       command_form.get('script_path'),
-        #                       command_form.get('arguments'),
-        #                       command_form.get('env_vars'),
-        #                       command_form.get('interpreter_path'),
-        #                       command_form.get('working_dir'),
-        #                       command_form.get('aim_experiment'))
-        #
-        # return {
-        #     'pid': pid,
-        # }
 
 
 @executables_api.resource('/running')

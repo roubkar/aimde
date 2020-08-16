@@ -58,9 +58,10 @@ class Panel extends Component {
         top: 0,
         selectedTags: [],
         selectedTagsLoading: false,
-        lineData: {},
-        lineIndex: null,
-        pointData: {},
+        run: null,
+        metric: null,
+        trace: null,
+        point: null,
       },
       tagPopUp: {
         display: false,
@@ -116,6 +117,7 @@ class Panel extends Component {
   componentDidMount() {
     this.initD3();
     this.renderChart();
+    setTimeout(() => this.renderChart(), 1000);
     window.addEventListener('resize', () => this.resize());
   }
 
@@ -142,7 +144,7 @@ class Panel extends Component {
 
     this.clear();
 
-    if (this.context.metrics.isLoading || this.context.metrics.isEmpty) {
+    if (this.context.runs.isLoading || this.context.runs.isEmpty) {
       return;
     }
 
@@ -223,26 +225,45 @@ class Panel extends Component {
 
   drawAxes = () => {
     return new Promise(resolve => {
-      const data = this.context.metrics.data;
+      const runs = this.context.runs.data;
+
       const { width, height, margin } = this.state.visBox;
 
       let xNum = 0, xMax = 0, xSteps = [];
-      data.forEach(i => {
-        if (i.num_steps > xMax) {
-          xMax = i.num_steps;
-        }
-        if (i.data.length > xNum) {
-          xNum = i.data.length;
-          xSteps = i.data.map(s => s.step);
-        }
+      runs.forEach((run) => {
+        run.metrics.forEach((metric) => {
+          metric.traces.forEach((trace) => {
+            if (trace.num_steps > xMax) {
+              xMax = trace.num_steps;
+            }
+            if (trace.data.length > xNum) {
+              xNum = trace.data.length;
+              xSteps = trace.data.map(s => s[1]);
+            }
+          });
+        });
       });
 
       const xScale = d3.scaleLinear()
         .domain([0, xMax])
         .range([0, width - margin.left - margin.right]);
 
-      let yMax = d3.max(data.map((i) => Math.max(...i.data.map(i => i.value))));
-      let yMin = d3.min(data.map((i) => Math.min(...i.data.map(i => i.value))));
+      let yMax = null, yMin = null;
+
+      runs.forEach((run) => {
+        run.metrics.forEach((metric) => {
+          metric.traces.forEach((trace) => {
+            const traceMax = Math.max(...trace.data.map(i => i[0]));
+            const traceMin = Math.min(...trace.data.map(i => i[0]));
+            if (yMax == null || traceMax > yMax) {
+              yMax = traceMax;
+            }
+            if (yMin == null || traceMin < yMin) {
+              yMin = traceMin;
+            }
+          });
+        });
+      });
 
       let yScaleBase;
       if (this.scale[this.context.chart.settings.yScale] === 'scaleLinear') {
@@ -282,39 +303,45 @@ class Panel extends Component {
   };
 
   drawLines = () => {
-    const metrics = this.context.metrics.data;
+    const runs = this.context.runs.data;
     const handleLineClick = this.handleLineClick;
 
-    metrics.forEach((metric, i) => {
-      const line = d3.line()
-        .x(d => this.state.chart.xScale(d.step))
-        .y(d => this.state.chart.yScale(d.value))
-        .curve(d3[this.curves[5]]);
+    runs.forEach((run) => {
+      run.metrics.forEach((metric) => {
+        metric.traces.forEach((trace) => {
+          const line = d3.line()
+            .x(d => this.state.chart.xScale(d[1]))
+            .y(d => this.state.chart.yScale(d[0]))
+            .curve(d3[this.curves[5]]);
 
-      this.plot.append('path')
-        .datum(metric.data)
-        .attr('data-hash', metric.hash)
-        .style('stroke', this.context.getMetricColor(metric))
-        .style('fill', 'none')
-        .attr('class', `PlotLine PlotLine-${i}`)
-        .attr('d', line)
-        .on('click', function () {
-          handleLineClick(d3.mouse(this));
+          this.plot.append('path')
+            .attr('class', `PlotLine PlotLine-${this.context.traceToHash(run.run_hash, metric.name, trace.context)}`)
+            .datum(trace.data)
+            .attr('d', line)
+            .style('fill', 'none')
+            .style('stroke', this.context.getMetricColor(run, metric, trace))
+            .attr('data-run-hash', run.run_hash)
+            .attr('data-metric-name', metric.name)
+            .attr('data-trace-context-hash', this.context.contextToHash(trace.context))
+            .on('click', function () {
+              handleLineClick(d3.mouse(this));
+            });
         });
+      });
     });
   };
 
   drawHoverAttributes = () => {
     const focused = this.context.chart.focused;
-    if (focused.index === null || focused.circle.active === false) {
+    if (focused.runHash === null || focused.circle.active === false) {
       this.hideActionPopUps(false);
     }
-    const index = focused.circle.active ? focused.circle.stepIndex : focused.index;
-    if (index === null) {
+    const step = focused.circle.active ? focused.circle.step : focused.step;
+    if (step === null || step === undefined) {
       return;
     }
 
-    const x = this.state.chart.xScale(index);
+    const x = this.state.chart.xScale(step);
     const { height } = this.state.plotBox;
 
     // Draw hover line
@@ -329,51 +356,59 @@ class Panel extends Component {
       .style('fill', 'none');
 
     // Draw circles
-    const metrics = this.context.metrics.data;
+    const runs = this.context.runs.data;
     const focusedMetric = focused.metric;
     const focusedCircle = focused.circle;
     const handlePointClick = this.handlePointClick;
     let focusedCircleElem = null;
 
     this.circles = this.plot.append('g');
-    for (let metricIndex in metrics) {
-      const metric = metrics[metricIndex];
-      const val = this.context.getMetricStepValueByStepIdx(metric.data, index);
-      if (val) {
-        const y = this.state.chart.yScale(val);
-        const circle = this.circles.append('circle')
-          .attr('class', `HoverCircle HoverCircle-${metricIndex}`)
-          .attr('cx', x)
-          .attr('cy', y)
-          .attr('r', circleRadius)
-          .attr('data-x', x)
-          .attr('data-y', y)
-          .attr('data-index', index)
-          .attr('data-line-index', metricIndex)
-          .attr('data-line-hash', metric.hash)
-          .style('fill', this.context.getMetricColor(metric))
-          .on('click', function () {
-            handlePointClick(index, parseInt(metricIndex));
-          });
 
-        if (focusedCircle.active === true
-          && focusedCircle.metricIndex === metricIndex
-          && focusedCircle.stepIndex === index) {
-          focusedCircleElem = circle;
-        }
-      }
-    }
+    runs.forEach((run) => {
+      run.metrics.forEach((metric) => {
+        metric.traces.forEach((trace) => {
+          const val = this.context.getMetricStepValueByStepIdx(trace.data, step);
+          if (val !== null) {
+            const y = this.state.chart.yScale(val);
+            const traceContext = this.context.contextToHash(trace.context);
+            const circle = this.circles.append('circle')
+              .attr('class', `HoverCircle HoverCircle-${step} HoverCircle-${this.context.traceToHash(run.run_hash, metric.name, traceContext)}`)
+              .attr('cx', x)
+              .attr('cy', y)
+              .attr('r', circleRadius)
+              .attr('data-x', x)
+              .attr('data-y', y)
+              .attr('data-step', step)
+              .attr('data-run-hash', run.run_hash)
+              .attr('data-metric-name', metric.name)
+              .attr('data-trace-context-hash', this.context.contextToHash(trace.context))
+              .style('fill', this.context.getMetricColor(run, metric, trace))
+              .on('click', function () {
+                handlePointClick(step, run.run_hash, metric.name, traceContext);
+              });
+
+            if (focusedCircle.active === true
+              && focusedCircle.runHash === run.run_hash
+              && focusedCircle.metricName === metric.name
+              && focusedCircle.traceContext === traceContext
+              && focusedCircle.step === step) {
+              focusedCircleElem = circle;
+            }
+          }
+        });
+      });
+    });
 
     // Apply focused state to line and circle
-    if (focusedCircle.metricIndex !== null || focusedMetric.index !== null) {
+    if (focusedCircle.runHash !== null || focusedMetric.runHash !== null) {
+      const focusedLineAttr = focusedCircle.runHash !== null ? focusedCircle : focusedMetric;
       this.plot
-        .selectAll(`.PlotLine-${(focusedCircle.metricIndex !== null ? focusedCircle.metricIndex : focusedMetric.index)}`)
+        .selectAll(`.PlotLine-${this.context.traceToHash(focusedLineAttr.runHash, focusedLineAttr.metricName, focusedLineAttr.traceContext)}`)
         .classed('active', true);
     }
-    if (focusedMetric.index !== null) {
+    if (focusedMetric.runHash !== null) {
       this.circles.selectAll('*.focus').moveToFront();
-
-      this.circles.selectAll(`.HoverCircle-${focusedMetric.index}`)
+      this.circles.selectAll(`.HoverCircle-${this.context.traceToHash(focusedMetric.runHash, focusedMetric.metricName, focusedMetric.traceContext)}`)
         .classed('active', true)
         .attr('r', circleActiveRadius)
         .moveToFront();
@@ -388,10 +423,9 @@ class Panel extends Component {
           .attr('r', circleActiveRadius)
           .moveToFront();
       } else {
-        const focusedCircleX = this.state.chart.xScale(focusedCircle.stepIndex);
-        const focusedCircleVal = this.context.getMetricStepValueByStepIdx(
-          metrics[focusedCircle.metricIndex].data,
-          focusedCircle.stepIndex);
+        const focusedCircleX = this.state.chart.xScale(focusedCircle.step);
+        const line = this.context.getTraceData(focusedCircle.runHash, focusedCircle.metricName, focusedCircle.traceContext);
+        const focusedCircleVal = this.context.getMetricStepValueByStepIdx(line.data, focusedCircle.step);
         const focusedCircleY = this.state.chart.yScale(focusedCircleVal);
 
         this.circles.append('circle')
@@ -401,21 +435,25 @@ class Panel extends Component {
           .attr('r', circleActiveRadius)
           .attr('data-x', focusedCircleX)
           .attr('data-y', focusedCircleY)
-          .attr('data-index', focusedCircle.stepIndex)
-          .attr('data-line-index', focusedCircle.metricIndex)
-          .attr('data-line-hash', metrics[focusedCircle.metricIndex].hash)
-          .style('fill', this.context.getMetricColor(metrics[focusedCircle.metricIndex]))
-          .on('click', function () {
-            handlePointClick(focusedCircle.stepIndex, focusedCircle.metricIndex);
+          .attr('data-step', step)
+          .attr('data-run-hash', focusedCircle.runHash)
+          .attr('data-metric-name', focusedCircle.metricName)
+          .attr('data-trace-context-hash', focusedCircle.traceContext)
+          .style('fill', this.context.getMetricColor(line.run, line.metric, line.trace))
+          .on('click', function() {
+            handlePointClick(focusedCircle.runHash,
+              focusedCircle.metricName,
+              focusedCircle.traceContext);
           })
           .moveToFront();
       }
 
       // Open chart pop up
-      const lineData = this.context.metrics.data[focusedCircle.metricIndex];
-      const pointData = this.context.getMetricStepDataByStepIdx(lineData.data, focusedCircle.stepIndex);
-      const pos = this.positionPopUp(this.state.chart.xScale(focusedCircle.stepIndex),
-        this.state.chart.yScale(pointData.value));
+      const line =  this.context.getTraceData(focusedCircle.runHash, focusedCircle.metricName,
+        focusedCircle.traceContext);
+      const point = this.context.getMetricStepDataByStepIdx(line.data, focusedCircle.step);
+      const pos = this.positionPopUp(this.state.chart.xScale(focusedCircle.step),
+        this.state.chart.yScale(point[0]));
       this.hideActionPopUps(false, () => {
         this.setState((prevState) => {
           return {
@@ -426,15 +464,16 @@ class Panel extends Component {
               display: true,
               selectedTags: [],
               selectedTagsLoading: true,
-              lineIndex: focusedCircle.metricIndex,
-              lineData,
-              pointData,
+              run: line.run,
+              metric: line.metric,
+              trace: line.trace,
+              point: point,
             },
           };
         });
 
-        if (this.context.isAimRun(lineData)) {
-          this.getCommitTags(lineData);
+        if (this.context.isAimRun(line.run)) {
+          this.getCommitTags(line.run.run_hash);
         }
       });
     } else {
@@ -481,11 +520,11 @@ class Panel extends Component {
 
     this.context.setChartFocusedState({
       circle: {
-        active: false,
-        metricIndex: null,
-        stepIndex: null,
+        runHash: null,
+        metricName: null,
+        traceContext: null,
       },
-      index: null,
+      step: null,
     });
 
     // Update active state
@@ -500,26 +539,31 @@ class Panel extends Component {
     this.context.setChartFocusedState({
       circle: {
         active: false,
-        metricIndex: null,
-        stepIndex: null,
+        runHash: null,
+        metricName: null,
+        traceContext: null,
+        step: null,
       },
-      index: null,
+      step: null,
     });
 
     // Update active state
     this.setActiveLineAndCircle(mouse, false);
   };
 
-  handlePointClick = (stepIndex, metricIndex) => {
+  handlePointClick = (step, runHash, metricName, traceContext) => {
     this.context.setChartFocusedState({
       circle: {
         active: true,
-        stepIndex,
-        metricIndex,
+        step,
+        runHash,
+        metricName,
+        traceContext,
       },
       metric: {
-        hash: null,
-        index: null,
+        runHash: null,
+        metricName: null,
+        traceContext: null,
       },
     });
   };
@@ -531,7 +575,7 @@ class Panel extends Component {
       const data = this.state.chart.xSteps;
       const x = marginInc ? mouse[0] - margin.left : mouse[0];
       const y = marginInc ? mouse[1] - margin.top : mouse[1];
-      let index = 0;
+      let step = 0;
 
       if (x >= 0) {
         // Line
@@ -540,39 +584,66 @@ class Panel extends Component {
         const a = data[relIndex - 1];
         const b = data[relIndex];
 
-        index = xPoint - a > b - xPoint ? b : a;
+        step = xPoint - a > b - xPoint ? b : a;
 
-        if (index !== this.context.chart.focused.index) {
+        if (step !== this.context.chart.focused.step) {
           this.context.setChartFocusedState({
-            index,
+            step,
           });
         }
 
-        // Circles
-        let nearestCircleY = null, nearestCircleRunIndex = null, nearestCircleRunHash = null;
-
         // Find the nearest circle
         if (this.circles) {
+          // Circles
+          let nearestCircle = [];
+
           this.circles.selectAll('.HoverCircle').each(function () {
             const elem = d3.select(this);
             const elemY = parseFloat(elem.attr('data-y'));
             const r = Math.abs(elemY - y);
 
-            if (nearestCircleY === null || r < nearestCircleY) {
-              nearestCircleY = r;
-              nearestCircleRunIndex = parseInt(elem.attr('data-line-index'));
-              nearestCircleRunHash = elem.attr('data-line-hash');
+            if (nearestCircle.length === 0 || r < nearestCircle[0].r) {
+              nearestCircle = [{
+                r: r,
+                nearestCircleRunHash: elem.attr('data-run-hash'),
+                nearestCircleMetricName: elem.attr('data-metric-name'),
+                nearestCircleTraceContext: elem.attr('data-trace-context-hash'),
+              }];
+            } else if (nearestCircle.length && r === nearestCircle[0].r) {
+              nearestCircle.push({
+                r: r,
+                nearestCircleRunHash: elem.attr('data-run-hash'),
+                nearestCircleMetricName: elem.attr('data-metric-name'),
+                nearestCircleTraceContext: elem.attr('data-trace-context-hash'),
+              });
             }
           });
 
-          if (nearestCircleRunIndex !== null
-            && nearestCircleRunIndex !== this.context.chart.focused.metric.index) {
-            this.context.setChartFocusedState({
-              metric: {
-                index: nearestCircleRunIndex,
-                hash: nearestCircleRunHash,
-              },
-            });
+          nearestCircle.sort((a, b) => {
+            const aHash = this.context.traceToHash(a.nearestCircleRunHash, a.nearestCircleMetricName,
+              a.nearestCircleTraceContext);
+            const bHash = this.context.traceToHash(b.nearestCircleRunHash, b.nearestCircleMetricName,
+              b.nearestCircleTraceContext);
+            return aHash > bHash ? 1 : -1;
+          });
+
+          if (nearestCircle.length) {
+            const nearestCircleRunHash = nearestCircle[0].nearestCircleRunHash;
+            const nearestCircleMetricName = nearestCircle[0].nearestCircleMetricName;
+            const nearestCircleTraceContext = nearestCircle[0].nearestCircleTraceContext;
+
+            if (nearestCircleRunHash !== this.context.chart.focused.metric.runHash
+              || nearestCircleMetricName !== this.context.chart.focused.metric.metricName
+              || nearestCircleTraceContext !== this.context.chart.focused.metric.traceContext
+            ) {
+              this.context.setChartFocusedState({
+                metric: {
+                  runHash: nearestCircleRunHash,
+                  metricName: nearestCircleMetricName,
+                  traceContext: nearestCircleTraceContext,
+                },
+              });
+            }
           }
         }
       }
@@ -583,8 +654,9 @@ class Panel extends Component {
     if (mouse === false || !this.isMouseInVisArea(mouse)) {
       this.context.setChartFocusedState({
         metric: {
-          index: null,
-          hash: null,
+          runHash: null,
+          metricName: null,
+          traceContext: null,
         },
       });
     }
@@ -669,8 +741,8 @@ class Panel extends Component {
     });
   };
 
-  getCommitTags = (lineData) => {
-    this.props.getCommitTags(lineData.hash)
+  getCommitTags = (runHash) => {
+    this.props.getCommitTags(runHash)
       .then((data) => {
         this.setState((prevState) => ({
           ...prevState,
@@ -700,7 +772,7 @@ class Panel extends Component {
       });
   };
 
-  handleTagItemClick = (lineData, tag) => {
+  handleTagItemClick = (runHash, experimentName, tag) => {
     this.setState((prevState) => ({
       ...prevState,
       chartPopUp: {
@@ -710,27 +782,27 @@ class Panel extends Component {
     }));
 
     this.props.updateCommitTag({
-      commit_hash: lineData.hash,
+      commit_hash: runHash,
       tag_id: tag.id,
-      experiment_name: lineData.branch,
+      experiment_name: experimentName,
     }).then(tagsIds => {
-      this.getCommitTags(lineData);
+      this.getCommitTags(runHash);
 
       // Update metrics
-      const data = [...this.context.metrics.data];
-      data.forEach((i) => {
-        if (i.hash === lineData.hash) {
-          i.tag = tag;
-        }
-      });
-      this.context.setMetricsState({
-        ...this.context.metrics,
-        data: data,
-      });
+      // const data = [...this.context.runs.data];
+      // data.forEach((i) => {
+      //   if (i.hash === runHash) {
+      //     i.tag = tag;
+      //   }
+      // });
+      // this.context.setRunsState({
+      //   ...this.context.runs,
+      //   data: data,
+      // });
     });
   };
 
-  handleAttachTagClick = (lineData) => {
+  handleAttachTagClick = () => {
     const pos = this.positionPopUp(
       this.state.chartPopUp.left + popUpDefaultWidth,
       this.state.chartPopUp.top,
@@ -761,7 +833,7 @@ class Panel extends Component {
     });
   };
 
-  handleProcessKill = (pid, idx) => {
+  handleProcessKill = (pid, runHash, experimentName) => {
     this.setState(prevState => ({
       ...prevState,
       commitPopUp: {
@@ -775,14 +847,11 @@ class Panel extends Component {
 
     this.props.killRunningExecutable(pid).then((data) => {
       // this.getProcesses();
-      this.handleCommitInfoClick(idx);
+      this.handleCommitInfoClick(runHash, experimentName);
     });
   };
 
-  handleCommitInfoClick = (lineIndex) => {
-    const data = this.context.metrics.data;
-    const lineData = data[lineIndex];
-
+  handleCommitInfoClick = (runHash, experimentName) => {
     const pos = this.positionPopUp(
       this.state.chartPopUp.left + popUpDefaultWidth,
       this.state.chartPopUp.top,
@@ -805,7 +874,7 @@ class Panel extends Component {
         },
       }));
 
-      this.props.getCommitInfo(lineData.branch, lineData.hash).then((data) => {
+      this.props.getCommitInfo(experimentName, runHash).then((data) => {
         this.setState(prevState => ({
           ...prevState,
           commitPopUp: {
@@ -819,7 +888,7 @@ class Panel extends Component {
   };
 
   _renderPopUpContent = () => {
-    const lineData = this.state.chartPopUp.lineData;
+    const { run, metric, trace, point } = this.state.chartPopUp;
     const commitPopUpData = this.state.commitPopUp.data;
 
     return (
@@ -833,7 +902,7 @@ class Panel extends Component {
             xGap={true}
           >
             <div>
-              {this.context.isAimRun(lineData) &&
+              {this.context.isAimRun(run) &&
               <div>
                 {!this.state.chartPopUp.selectedTagsLoading
                   ? (
@@ -854,7 +923,7 @@ class Panel extends Component {
                         }
                         <div
                           className='ControlPanel__popup__tags__update'
-                          onClick={() => this.handleAttachTagClick(lineData)}
+                          onClick={() => this.handleAttachTagClick()}
                         >
                           <UI.Icon i='nc-pencil'/>
                         </div>
@@ -868,45 +937,45 @@ class Panel extends Component {
                 <UI.Line/>
               </div>
               }
-              {this.context.isAimRun(lineData) &&
+              {this.context.isAimRun(run) &&
               <>
                 <UI.Text
                   className='link'
                   type='primary'
-                  onClick={() => this.handleCommitInfoClick(this.state.chartPopUp.lineIndex)}
+                  onClick={() => this.handleCommitInfoClick(run.run_hash, run.experiment_name)}
                 >
                   Run details
                 </UI.Text>
                 <UI.Line />
               </>
               }
-              {this.context.isTFSummaryScalar(lineData) &&
+              {this.context.isTFSummaryScalar(run) &&
               <>
                 <div className='ControlPanel__popup__tags__wrapper'>
                   <UI.Text overline type='grey-darker'>tag</UI.Text>
                   <div className='ControlPanel__popup__tags'>
                     <UI.Label>
-                      {lineData.tag.name}
+                      {metric.tag.name}
                     </UI.Label>
                   </div>
                 </div>
                 <UI.Line />
                 <UI.Text overline type='grey-darker'>tf.summary scalar</UI.Text>
-                <UI.Text type='grey-dark'>{lineData.name}</UI.Text>
-                <UI.Text type='grey' small>{moment.unix(lineData.date).format('HH:mm · D MMM, YY')}</UI.Text>
+                <UI.Text type='grey-dark'>{run.name}</UI.Text>
+                {/*<UI.Text type='grey' small>{moment.unix(run.date).format('HH:mm · D MMM, YY')}</UI.Text>*/}
                 <UI.Line />
               </>
               }
-              <UI.Text color={this.context.getMetricColor(lineData)}>
-                Value: {Math.round(this.state.chartPopUp.pointData.value*10e9)/10e9}
+              <UI.Text type='grey-darker'>
+                Value: {Math.round(point[0]*10e9)/10e9}
               </UI.Text>
-              {this.state.chartPopUp.pointData.epoch !== null &&
-              <UI.Text type='grey' small>Epoch: {this.state.chartPopUp.pointData.epoch}</UI.Text>
+              {point[2] !== null &&
+              <UI.Text type='grey' small>Epoch: {point[2]}</UI.Text>
               }
               <UI.Text type='grey' small>
-                Step: {this.state.chartPopUp.pointData.step}
-                {this.context.isTFSummaryScalar(lineData) &&
-                  <> (local step: {this.state.chartPopUp.pointData.local_step}) </>
+                Step: {point[1]}
+                {this.context.isTFSummaryScalar(run) &&
+                  <> (local step: {point[4]}) </>
                 }
               </UI.Text>
             </div>
@@ -949,7 +1018,7 @@ class Panel extends Component {
                         })}
                         key={tagKey}
                         color={tag.color}
-                        onClick={() => this.handleTagItemClick(lineData, tag)}
+                        onClick={() => this.handleTagItemClick(run.run_hash, run.experiment_name, tag)}
                       >
                         {tag.name}
                       </UI.Label>
@@ -970,29 +1039,23 @@ class Panel extends Component {
             >
               {this.state.commitPopUp.isLoading
                 ? (
-                  <UI.Text type='grey' center spacingTop>Loading..</UI.Text>
+                  <UI.Text type='grey' center>Loading..</UI.Text>
                 ) : (
                   <>
-                    <UI.Text type='grey' small>
-                      {moment.unix(lineData.date).format('HH:mm · D MMM, YY')}
-                    </UI.Text>
+                    {/*<UI.Text type='grey' small>*/}
+                    {/*  {moment.unix(lineData.date).format('HH:mm · D MMM, YY')}*/}
+                    {/*</UI.Text>*/}
                     <Link
                       to={buildUrl(HUB_PROJECT_EXPERIMENT, {
-                        experiment_name: lineData.branch,
-                        commit_id: lineData.hash,
+                        experiment_name: run.experiment_name,
+                        commit_id: run.run_hash,
                       })}
                     >
                       <UI.Text type='primary'>Detailed View</UI.Text>
                     </Link>
                     <UI.Line />
-                    {(!Number.isInteger(lineData.msg) || `${lineData.msg}`.length !== 10) &&
-                    <>
-                      <UI.Text type='grey-darker' small spacing>{lineData.msg}</UI.Text>
-                      <UI.Line />
-                    </>
-                    }
-                    <UI.Text type='grey' small>Experiment: {lineData.branch}</UI.Text>
-                    <UI.Text type='grey' small>Hash: {lineData.hash}</UI.Text>
+                    <UI.Text type='grey' small>Experiment: {run.experiment_name}</UI.Text>
+                    <UI.Text type='grey' small>Hash: {run.run_hash}</UI.Text>
                     {!!commitPopUpData.process &&
                     <>
                       <UI.Line />
@@ -1017,7 +1080,7 @@ class Panel extends Component {
                       <div className='CommitPopUp__process'>
                         <UI.Text type='grey' small inline>PID: {commitPopUpData.process.pid} </UI.Text>
                         <UI.Button
-                          onClick={() => this.handleProcessKill(commitPopUpData.process.pid, this.state.chartPopUp.lineIndex)}
+                          onClick={() => this.handleProcessKill(commitPopUpData.process.pid, run.run_hash, run.experiment_name)}
                           type='negative'
                           size='tiny'
                           inline
@@ -1051,14 +1114,14 @@ class Panel extends Component {
     return (
       <div className='ControlPanel' ref={this.parentRef}>
         <div ref={this.visRef} className='ControlPanel__svg' />
-        {this.context.metrics.isLoading
+        {this.context.runs.isLoading
           ? (
-            this.context.search.query.indexOf('include:tf_logs') === -1
+            this.context.search.query.indexOf('tf:') === -1
               ? this._renderPanelMsg(<UI.Text type='grey' center>Loading..</UI.Text>)
               : this._renderPanelMsg(<UI.Text type='grey' center>Loading tf.summary logs can take some time..</UI.Text>)
           )
           : <>
-            {this.context.metrics.isEmpty
+            {this.context.runs.isEmpty
               ? this._renderPanelMsg(
                 <>
                   {!!this.context.search.query

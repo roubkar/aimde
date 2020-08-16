@@ -1,4 +1,5 @@
-aimrecords>=0.0.3
+aim-cli==2.0.6
+aimrecords==0.0.4
 alembic==1.1.0
 aniso8601==7.0.0
 certifi==2019.6.16

@@ -1,10 +1,15 @@
 import json
 import os
 import time
-from aimrecords import Storage
 
-from flask import Blueprint, jsonify, request, \
-    abort, make_response, send_from_directory
+from flask import (
+    abort,
+    jsonify,
+    request,
+    Blueprint,
+    make_response,
+    send_from_directory,
+)
 from flask_restful import Api, Resource
 
 from app.db import db
@@ -13,8 +18,7 @@ from app.projects.utils import (
     get_branch_commits,
 )
 from app.projects.project import Project
-from artifacts.artifact import Metric
-from app.commits.utils import get_runs_metric, get_branches
+from artifacts.artifact import Metric as MetricRecord
 
 
 projects_bp = Blueprint('projects', __name__)
@@ -34,7 +38,7 @@ class ProjectApi(Resource):
             'path': project.path,
             'tf_enabled': project.tf_enabled,
             'description': project.description,
-            'branches': get_branches(),
+            'branches': project.repo.list_branches(),
         })
 
 
@@ -47,7 +51,7 @@ class ProjectDataApi(Resource):
             return make_response(jsonify({}), 404)
 
         return jsonify({
-            'branches': get_branches(),
+            'branches': project.repo.list_branches(),
         })
 
 
@@ -138,8 +142,6 @@ class ProjectExperimentApi(Resource):
         map_objects = []
         stats_objects = []
 
-        records_storage = Storage(objects_dir_path, 'r')
-
         # Limit distributions
         for obj_key, obj in meta_file_content.items():
             if obj['type'] == 'dir':
@@ -159,7 +161,8 @@ class ProjectExperimentApi(Resource):
                     'data': obj['data'],
                     'size': model_file_size,
                 })
-            elif (obj['type'] == 'metrics' and obj['data_path'] != '__AIMRECORDS__') or \
+            elif (obj['type'] == 'metrics'
+                  and obj['data_path'] != '__AIMRECORDS__') or \
                     ('map' in obj['type'] or obj['type'] == 'map'):
                     # obj['type'] == 'distribution':
                 # Get object's data file path
@@ -172,27 +175,35 @@ class ProjectExperimentApi(Resource):
                     return make_response(jsonify({}), 501)
 
             if obj['type'] == 'metrics':
-                comp_content = []
-                if obj['data_path'] == '__AIMRECORDS__':
-                    format = 'aimrecords'
-                    records_storage.open(obj['name'],
-                                         uncommitted_bucket_visible=True)
-                    for r in records_storage.read_records(obj['name'],
-                                                          slice(-1000, None)):
-                        base, metric_record = Metric.deserialize(r)
-                        comp_content.append(metric_record.value)
-                    records_storage.close(obj['name'])
+                steps = 75
+                run = project.repo.select_run_metrics(experiment_name,
+                                                      commit['hash'],
+                                                      obj['name'])
+                if run is not None and run.metrics.get(obj['name']) \
+                        and len(run.metrics[obj['name']].traces):
+                    metric = run.metrics[obj['name']]
+                    run.open_storage()
+                    metric.open_artifact()
+                    traces = []
+                    for trace in metric.traces:
+                        num = trace.num_records
+                        step = num // steps or 1
+                        for r in trace.read_records(slice(0, num, step)):
+                            base, metric_record = MetricRecord.deserialize(r)
+                            trace.append((
+                                base.step,  # 0 => step
+                                metric_record.value,  # 1 => value
+                            ))
+                        traces.append(trace.to_dict())
+                    metric.close_artifact()
+                    run.close_storage()
                 else:
-                    format = 'json_log'
-                    obj_data_content = read_artifact_log(obj_data_file_path,
-                                                         1000)
-                    comp_content = list(map(lambda x: float(x),
-                                            obj_data_content))
+                    traces = []
+
                 metric_objects.append({
                     'name': obj['name'],
                     'mode': 'plot',
-                    'data': comp_content,
-                    'format': format,
+                    'traces': traces,
                 })
             elif 'map' in obj['type'] or obj['type'] == 'map':
                 try:
@@ -205,8 +216,6 @@ class ProjectExperimentApi(Resource):
                         })
                 except:
                     pass
-
-        records_storage.close()
 
         # Return found objects
         return jsonify({
@@ -225,13 +234,7 @@ class ProjectExperimentApi(Resource):
 @projects_api.resource('/insight/<insight_name>')
 class ProjectInsightApi(Resource):
     def get(self, insight_name):
-        project = Project()
-        if not project.exists():
-            return make_response(jsonify({}), 404)
-
-        commits = get_runs_metric(insight_name)
-
-        return jsonify(commits)
+        return make_response(jsonify({}), 404)
 
 
 @projects_api.resource('/<experiment_name>/<commit_id>/<file_path>')

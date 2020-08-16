@@ -1,5 +1,4 @@
 import uuid
-import datetime
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB
 

@@ -1,15 +1,16 @@
-import json
-import os
-import time
-
-from flask import Blueprint, jsonify, request, \
-    abort, make_response, send_from_directory
+from flask import (
+    abort,
+    jsonify,
+    request,
+    Blueprint,
+    make_response,
+    send_from_directory,
+)
 from flask_restful import Api, Resource
+from sqlalchemy.orm import joinedload
 
-from app import App
 from app.db import db
 from app.commits.models import Tag
-from sqlalchemy.orm import joinedload
 
 
 tags_bp = Blueprint('tags', __name__)

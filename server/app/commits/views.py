@@ -6,19 +6,20 @@ from flask import Blueprint, jsonify, request, \
     abort, make_response, send_from_directory
 from flask_restful import Api, Resource
 
+from aim.ql.grammar.statement import Statement
+
 from app import App
+from app.projects.project import Project
 from app.commits.models import Commit, TFSummaryLog, Tag
 from services.executables.action import Action
 from app.db import db
 from adapters.tf_summary_adapter import TFSummaryAdapter
+from artifacts.artifact import Metric as MetricRecord
 from app.commits.utils import (
-    get_runs_metric,
-    get_runs_dictionary,
-    get_tf_summary_scalars,
-    retrieve_scale_metrics,
-    scale_metric_steps,
-    parse_query,
-    get_tf_logs_params,
+    select_tf_summary_scalars,
+    scale_trace_steps,
+    separate_select_statement,
+    is_tf_run,
 )
 
 
@@ -29,60 +30,134 @@ commits_api = Api(commits_bp)
 @commits_api.resource('/search/metric')
 class CommitMetricSearchApi(Resource):
     def get(self):
-        query = request.args.get('q').strip()
-        parsed_query = parse_query(query)
+        search_statement = request.args.get('q').strip()
 
-        # Get parameters
-        metrics = parsed_query['metrics']
-        tag = parsed_query['tag']
-        experiment = parsed_query['experiment']
-        params = parsed_query['params']
-        steps = parsed_query['steps']
+        # TODO: get from request
+        steps_num = 50
 
-        runs_metrics = []
+        runs = []
 
-        # Get `aim` runs
-        aim_runs_metrics = get_runs_metric(metrics, tag, experiment,
-                                           params)
-        runs_metrics += aim_runs_metrics
+        # Parse statement
+        try:
+            parser = Statement()
+            parsed_stmt = parser.parse(search_statement.strip())
+        except:
+            return make_response(jsonify({}), 403)
 
-        # Get `tf_summary` runs
-        if 'tf_logs' in parsed_query['include']:
+        statement_select = parsed_stmt.node['select']
+        statement_expr = parsed_stmt.node['expression']
+
+        aim_runs, tf_logs = separate_select_statement(statement_select)
+
+        # Get project
+        project = Project()
+        if not project.exists():
+            return make_response(jsonify({}), 404)
+
+        try:
+            aim_metrics = project.repo.select_metrics(aim_runs, statement_expr)
+            if aim_metrics and len(aim_metrics):
+                runs += aim_metrics
+        except:
+            pass
+
+        # Get tf.summary logs
+        if len(tf_logs) > 0:
             try:
-                runs_metrics += get_tf_summary_scalars(metrics, params)
+                tf_runs = select_tf_summary_scalars(tf_logs, statement_expr)
+                if tf_runs and len(tf_runs):
+                    runs += tf_runs
             except:
                 pass
 
-        # Retrieve and/or scale steps
-        max_run_len = 0
-        for metric in runs_metrics:
-            if metric['num_steps'] > max_run_len:
-                max_run_len = metric['num_steps']
-        scaled_steps = scale_metric_steps(max_run_len, steps or 50)
+        # Get the longest trace length
+        max_num_records = 0
+        for run in runs:
+            if is_tf_run(run):
+                for metric in run['metrics']:
+                    for trace in metric['traces']:
+                        if trace['num_steps'] > max_num_records:
+                            max_num_records = trace['num_steps']
+            else:
+                run.open_storage()
+                for metric in run.metrics.values():
+                    try:
+                        metric.open_artifact()
+                        for trace in metric.traces:
+                            if trace.num_records > max_num_records:
+                                max_num_records = trace.num_records
+                    except:
+                        pass
+                    finally:
+                        pass
+            #         metric.close_artifact()
+            # run.close_storage()
 
-        retrieve_scale_metrics(runs_metrics, metrics, scaled_steps)
+        # Scale all traces
+        steps = scale_trace_steps(max_num_records, steps_num)
 
-        return jsonify(runs_metrics)
+        # Retrieve records
+        for run in runs:
+            if is_tf_run(run):
+                for metric in run['metrics']:
+                    for trace in metric['traces']:
+                        trace_range = range(len(trace['data']))[steps.start:
+                                                                steps.stop:
+                                                                steps.step]
+                        trace_scaled_data = []
+                        for i in trace_range:
+                            trace_scaled_data.append(trace['data'][i])
+                        trace['data'] = trace_scaled_data
+            else:
+                # run.open_storage()
+                for metric in run.metrics.values():
+                    try:
+                        # metric.open_artifact()
+                        for trace in metric.traces:
+                            for r in trace.read_records(steps):
+                                base, metric_record = MetricRecord.deserialize(r)
+                                trace.append((
+                                    metric_record.value,           # 0 => value
+                                    base.step,                     # 1 => step
+                                    (base.epoch if base.has_epoch  # 2 => epoch
+                                     else None),                   #
+                                     base.timestamp,               # 3 => time
+                                ))
+                    except:
+                        pass
+                    finally:
+                        metric.close_artifact()
+                run.close_storage()
+
+        runs_list = []
+        for run in runs:
+            if not is_tf_run(run):
+                runs_list.append(run.to_dict())
+            else:
+                runs_list.append(run)
+
+        return jsonify({
+            'runs': runs_list,
+        })
 
 
 @commits_api.resource('/search/dictionary')
 class CommitDictionarySearchApi(Resource):
     def get(self):
-        query = request.args.get('q').strip()
-        parsed_query = parse_query(query)
-
-        tag = parsed_query['tag']
-        experiment = parsed_query['experiment']
-
-        dicts = get_runs_dictionary(tag, experiment)
-
         # Get tf logs saved params
-        if 'tf_logs' in parsed_query['include']:
-            tf_logs_params = get_tf_logs_params()
-            for tf_log_path, tf_log_params in tf_logs_params.items():
-                dicts[tf_log_path] = tf_log_params
+        # tf_logs_params = {}
+        # tf_logs = TFSummaryLog.query.filter(
+        #     TFSummaryLog.is_archived.is_(False)) \
+        #     .all()
+        #
+        # for tf_log in tf_logs:
+        #     tf_logs_params[tf_log.log_path] = {
+        #         'data': tf_log.params_json,
+        #     }
+        # for tf_log_path, tf_log_params in tf_logs_params.items():
+        #     dicts[tf_log_path] = tf_log_params
 
-        return jsonify(dicts)
+        return jsonify({})
 
 
 @commits_api.resource('/tf-summary/list')
