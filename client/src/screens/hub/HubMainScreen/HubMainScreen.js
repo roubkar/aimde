@@ -48,6 +48,7 @@ class HubMainScreen extends React.Component {
           },
           settings: {
             yScale: 0,
+            displayOutliers: false
           },
         },
 
@@ -479,6 +480,12 @@ class HubMainScreen extends React.Component {
     return this.hashToColor(hash, alpha);
   };
 
+  toggleOutliers = () => {
+    this.setChartSettingsState({
+      displayOutliers: !this.state.context.chart.settings.displayOutliers
+    });
+  };
+
   _renderContent = () => {
     const headerWidth = 70;
     const controlsWidth = 75;
@@ -549,6 +556,7 @@ class HubMainScreen extends React.Component {
             contextToHash               : this.contextToHash,
             traceToHash                 : this.traceToHash,
             updateURL                   : this.updateURL,
+            toggleOutliers              : this.toggleOutliers
           }}
         >
           {this._renderContent()}

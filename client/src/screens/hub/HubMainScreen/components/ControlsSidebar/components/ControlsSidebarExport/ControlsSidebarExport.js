@@ -9,7 +9,7 @@ function ControlsSidebarExport(props) {
     // FIXME: Need to implement more declarative approach for getting svg element (#64)
     let svgElement = document.querySelector('#panel_svg');
     if (svgElement) {
-      let { width, height } = svgElement.getBBox();
+      let { width, height } = svgElement.getBoundingClientRect();
       let clonedSvgElement = svgElement.cloneNode(true);
       clonedSvgElement.style.background = '#ffffff';
       let hoverLine = clonedSvgElement.querySelector('.HoverLine');

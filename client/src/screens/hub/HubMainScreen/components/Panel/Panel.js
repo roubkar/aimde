@@ -254,8 +254,20 @@ class Panel extends Component {
       runs.forEach((run) => {
         run.metrics.forEach((metric) => {
           metric.traces.forEach((trace) => {
-            const traceMax = Math.max(...trace.data.map(i => i[0]));
-            const traceMin = Math.min(...trace.data.map(i => i[0]));
+            let traceMax;
+            if (this.context.chart.settings.displayOutliers) {
+              traceMax = Math.max(...trace.data.map(elem => elem[0]));
+            } else {
+              let values = trace.data.map(elem => elem[0]);
+              values.sort((a, b) => a - b);
+              let q1 = values[Math.floor((values.length / 4))];
+              let q3 = values[Math.ceil((values.length * (3 / 4)))];
+              // the inter-quartile range
+              let iqr = q3 - q1;
+              // Find max value
+              traceMax = q3 + iqr * 1.5;
+            }
+            const traceMin = Math.min(...trace.data.map(elem => elem[0]));
             if (yMax == null || traceMax > yMax) {
               yMax = traceMax;
             }
