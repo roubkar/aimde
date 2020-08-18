@@ -206,7 +206,8 @@ class Panel extends Component {
         this.svg = visArea.append('svg')
           .attr('width', width)
           .attr('height', height)
-          .attr('xmlns', 'http://www.w3.org/2000/svg');
+          .attr('xmlns', 'http://www.w3.org/2000/svg')
+          .attr('id', 'panel_svg');
 
         this.bgRect = this.svg.append('rect')
           .attr('x', margin.left)

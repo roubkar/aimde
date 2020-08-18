@@ -1,22 +1,27 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React from 'react';
 import UI from '../../../../../../../ui';
 import { classNames } from '../../../../../../../utils';
-import HubMainScreenContext from '../../../../HubMainScreenContext/HubMainScreenContext';
 
-function ControlsSidebarExport() {
-  let hubMainScreenContextValue = useContext(HubMainScreenContext);
-  let [exportIsDisabled, setExportDisabled] = useState(hubMainScreenContextValue.metrics.isLoading || hubMainScreenContextValue.metrics.isEmpty);
+import PropTypes from 'prop-types';
 
-  useEffect(() => {
-    setExportDisabled(hubMainScreenContextValue.metrics.isLoading || hubMainScreenContextValue.metrics.isEmpty);
-  }, [hubMainScreenContextValue.metrics.isLoading, hubMainScreenContextValue.metrics.isEmpty]);
-
+function ControlsSidebarExport(props) {
   function exportPanel() {
     // FIXME: Need to implement more declarative approach for getting svg element (#64)
-    let svgElement = document.querySelector('svg');
+    let svgElement = document.querySelector('#panel_svg');
     if (svgElement) {
       let { width, height } = svgElement.getBBox();
       let clonedSvgElement = svgElement.cloneNode(true);
+      clonedSvgElement.style.background = '#ffffff';
+      let hoverLine = clonedSvgElement.querySelector('.HoverLine');
+      let hoverCircles = clonedSvgElement.querySelectorAll('.HoverCircle');
+      if (hoverLine) {
+        hoverLine.remove();
+      }
+      if (hoverCircles.length > 0) {
+        hoverCircles.forEach(hoverCircle => {
+          hoverCircle.remove();
+        });
+      }
       let outerHTML = clonedSvgElement.outerHTML;
       let blob = new Blob([outerHTML], { type: 'image/svg+xml;charset=utf-8' });
       let URL = window.URL || window.webkitURL || window;
@@ -53,14 +58,18 @@ function ControlsSidebarExport() {
     <div
       className={classNames({
         ControlsSidebar__item: true,
-        disabled: exportIsDisabled
+        disabled: props.disabled
       })}
       onClick={exportPanel}
-      title={exportIsDisabled ? 'Export is disabled' : 'Export panel as JPEG'}
+      title={props.disabled ? 'Export is disabled' : 'Export panel as JPEG'}
     >
       <UI.Icon i='nc-square-download' scale={1.4} />
     </div>
   );
 }
+
+ControlsSidebarExport.propTypes = {
+  disabled: PropTypes.bool
+};
 
 export default ControlsSidebarExport;
